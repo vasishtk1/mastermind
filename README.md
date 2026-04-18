@@ -1,3 +1,2 @@
-# Welcome to your Lovable project
+# Ember Dashboard for Researchers/Doctors
 
-TODO: Document your project here
