@@ -1,392 +1,270 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Mic, Loader2, Check } from "lucide-react";
-import { Line } from "react-chartjs-2";
+import { Brain, Loader2, Save, Rocket, Waves, Activity, TrendingUp, Wind, Crosshair, Zap } from "lucide-react";
+import { Radar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
+  RadialLinearScale,
   PointElement,
   LineElement,
   Filler,
   Tooltip as CTooltip,
   Legend,
 } from "chart.js";
-import { fetchProfiles, generateBaseline, activateProfile } from "@/lib/ember-api";
-import type { Profile } from "@/lib/ember-types";
-import { CountUp } from "@/components/ember/CountUp";
+import { PATIENTS, PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
+import type { Profile, TriggerCategory } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, CTooltip, Legend);
+ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, CTooltip, Legend);
 
-const fmtTime = (iso: string) => {
-  const d = new Date(iso);
-  const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return `${Math.floor(diff)}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-};
+const CATEGORIES: TriggerCategory[] = [
+  "Auditory overstimulation",
+  "Social crowding",
+  "Sudden acoustic shock",
+  "Sustained low-frequency stress",
+  "Mixed environment",
+  "Custom",
+];
 
-const SAMPLE_TRANSCRIPT =
-  "Patient becomes overwhelmed in the cafeteria when multiple voices overlap above 70 decibels for more than 10 seconds. Onset is rapid, recovery requires a quiet environment.";
+const STATUS_MSGS = [
+  "Parsing clinical language...",
+  "Extracting acoustic parameters...",
+  "Fitting anomaly model...",
+  "Calibrating MFCC thresholds...",
+];
+
+const ICONS: Record<string, any> = { Waves, Activity, TrendingUp, Wind, Crosshair, Zap };
 
 const ResearcherIDE = () => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [baseline, setBaseline] = useState<Profile | null>(null);
-  const [threshold, setThreshold] = useState(72);
-  const [deployed, setDeployed] = useState(false);
+  const [text, setText] = useState("");
+  const [patientId, setPatientId] = useState(PATIENTS[0].id);
+  const [category, setCategory] = useState<TriggerCategory>("Auditory overstimulation");
+  const [loading, setLoading] = useState(false);
+  const [statusIdx, setStatusIdx] = useState(0);
+  const [generated, setGenerated] = useState<Profile | null>(null);
 
   useEffect(() => {
-    fetchProfiles().then((p) => {
-      setProfiles(p);
-      setSelectedId(p[0]?.id ?? null);
-      setBaseline(p[0] ?? null);
-      if (p[0]?.metrics) setThreshold(p[0].metrics.db_threshold);
-    });
-  }, []);
+    if (!loading) return;
+    const id = setInterval(() => setStatusIdx((i) => (i + 1) % STATUS_MSGS.length), 600);
+    return () => clearInterval(id);
+  }, [loading]);
 
-  const filtered = useMemo(
-    () => profiles.filter((p) => p.trigger_type.toLowerCase().includes(search.toLowerCase())),
-    [profiles, search],
-  );
-
-  const selectProfile = (p: Profile) => {
-    setSelectedId(p.id);
-    setBaseline(p);
-    setDeployed(false);
-    if (p.metrics) setThreshold(p.metrics.db_threshold);
+  const handleGenerate = () => {
+    setLoading(true);
+    setStatusIdx(0);
+    setGenerated(null);
+    setTimeout(() => {
+      const seed = PROFILES[Math.floor(Math.random() * PROFILES.length)];
+      const newProf: Profile = {
+        ...seed,
+        id: `prof-gen-${Date.now()}`,
+        patient_id: patientId,
+        trigger_category: category,
+        description: text || seed.description,
+        name: `${category.split(" ")[0].toUpperCase().slice(0, 4)}-GEN-${String(Math.floor(Math.random() * 900) + 100)}`,
+        active: false,
+        updated_at: new Date().toISOString(),
+      };
+      setGenerated(newProf);
+      setLoading(false);
+    }, 2500);
   };
 
-  const handleRecord = () => {
-    if (recording) {
-      setRecording(false);
-      return;
-    }
-    setRecording(true);
-    setTranscript("");
-    // simulate streaming transcription
-    let i = 0;
-    const id = setInterval(() => {
-      i += 3;
-      setTranscript(SAMPLE_TRANSCRIPT.slice(0, i));
-      if (i >= SAMPLE_TRANSCRIPT.length) {
-        clearInterval(id);
-        setRecording(false);
-      }
-    }, 40);
-  };
-
-  const handleGenerate = async () => {
-    if (!transcript.trim()) return;
-    setGenerating(true);
-    setDeployed(false);
-    const p = await generateBaseline(transcript);
-    setBaseline(p);
-    if (p.metrics) setThreshold(p.metrics.db_threshold);
-    setProfiles((prev) => [p, ...prev]);
-    setSelectedId(p.id);
-    setGenerating(false);
-  };
-
-  const handleDeploy = async () => {
-    if (!baseline) return;
-    await activateProfile(baseline.id);
-    setProfiles((prev) =>
-      prev.map((p) => ({ ...p, active: p.id === baseline.id ? true : p.active })),
-    );
-    setDeployed(true);
-  };
-
-  // Distribution chart data
-  const chartData = useMemo(() => {
-    const labels = Array.from({ length: 60 }, (_, i) => i);
-    const gauss = (mu: number, sigma: number) => (x: number) =>
-      Math.exp(-Math.pow(x - mu, 2) / (2 * sigma * sigma));
-    const safe = labels.map((x) => gauss(22, 8)(x) * 100);
-    const danger = labels.map((x) => gauss(44, 9)(x) * 100);
+  const radarData = useMemo(() => {
+    const labels = ["Spectral Flux", "MFCC Deviation", "Pitch Escalation", "Breath Rate", "Spectral Centroid", "ZCR Density"];
+    const safe = generated?.safe_radar ?? PROFILES[0].safe_radar;
+    const danger = generated?.danger_radar ?? PROFILES[0].danger_radar;
+    const toArr = (r: any) => [r.spectral_flux, r.mfcc_deviation, r.pitch_escalation, r.breath_rate, r.spectral_centroid, r.zcr_density];
     return {
       labels,
       datasets: [
         {
-          label: "Safe",
-          data: safe,
-          borderColor: "hsl(174 84% 52%)",
-          backgroundColor: "hsla(174, 84%, 52%, 0.18)",
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0,
-          borderWidth: 2,
+          label: "Safe baseline",
+          data: toArr(safe),
+          borderColor: "hsl(171 100% 42%)",
+          backgroundColor: "hsla(171, 100%, 42%, 0.18)",
+          borderWidth: 1.5,
+          pointBackgroundColor: "hsl(171 100% 42%)",
+          pointRadius: 3,
         },
         {
-          label: "Danger",
-          data: danger,
+          label: "Danger profile",
+          data: toArr(danger),
           borderColor: "hsl(0 100% 71%)",
-          backgroundColor: "hsla(0, 100%, 71%, 0.16)",
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0,
-          borderWidth: 2,
+          backgroundColor: "hsla(0, 100%, 71%, 0.18)",
+          borderWidth: 1.5,
+          pointBackgroundColor: "hsl(0 100% 71%)",
+          pointRadius: 3,
         },
       ],
     };
-  }, []);
+  }, [generated]);
 
-  const chartOptions = useMemo<any>(
-    () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      scales: {
-        x: {
-          grid: { color: "hsla(174, 50%, 50%, 0.06)" },
-          ticks: { color: "hsl(215 18% 60%)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 6 },
-          title: { display: true, text: "Acoustic load", color: "hsl(215 18% 60%)", font: { size: 10 } },
-        },
-        y: {
-          grid: { color: "hsla(174, 50%, 50%, 0.06)" },
-          ticks: { color: "hsl(215 18% 60%)", font: { family: "JetBrains Mono", size: 9 } },
-          title: { display: true, text: "Frequency", color: "hsl(215 18% 60%)", font: { size: 10 } },
-        },
+  const radarOptions = useMemo<any>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top",
+        labels: { color: "hsl(200 30% 92%)", font: { family: "Inter", size: 11 }, usePointStyle: true, boxWidth: 8 },
       },
-    }),
-    [],
-  );
+      tooltip: { enabled: false },
+    },
+    scales: {
+      r: {
+        min: 0,
+        max: 100,
+        angleLines: { color: "hsla(171, 100%, 42%, 0.12)" },
+        grid: { color: "hsla(171, 100%, 42%, 0.1)" },
+        pointLabels: { color: "hsl(215 18% 70%)", font: { family: "JetBrains Mono", size: 10 } },
+        ticks: { display: false, stepSize: 25 },
+      },
+    },
+  }), []);
 
   return (
-    <div className="flex h-screen">
-      {/* LEFT — Profile library */}
-      <section className="w-[240px] shrink-0 bg-surface/80 border-r border-border/60 flex flex-col">
-        <div className="p-4 border-b border-border/60">
-          <div className="mono text-[10px] tracking-[0.2em] text-muted-foreground mb-2">PROFILE LIBRARY</div>
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search profiles"
-              className="w-full bg-input/60 border border-border rounded-md pl-8 pr-2 py-1.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
-            />
-          </div>
+    <div className="h-screen flex overflow-hidden">
+      {/* Left column */}
+      <div className="w-[420px] shrink-0 border-r border-border overflow-y-auto p-6 space-y-5">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">New clinical observation</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Describe what you observe about this patient's triggers in natural language.
+          </p>
         </div>
-        <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => selectProfile(p)}
-              className={cn(
-                "w-full text-left px-3 py-2.5 rounded-md transition-all border",
-                selectedId === p.id
-                  ? "bg-primary/10 border-primary/40"
-                  : "border-transparent hover:bg-surface-elevated",
-              )}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    p.active ? "bg-primary animate-pulse-dot" : "bg-muted-foreground/40",
-                  )}
-                />
-                <span className="text-[13px] font-medium truncate">{p.trigger_type}</span>
-              </div>
-              <div className="mono text-[10px] text-muted-foreground pl-4">{fmtTime(p.updated_at)}</div>
-            </button>
-          ))}
-        </div>
-        <div className="p-3 border-t border-border/60">
-          <button
-            onClick={() => {
-              setBaseline(null);
-              setTranscript("");
-              setSelectedId(null);
-              setDeployed(false);
-            }}
-            className="w-full flex items-center justify-center gap-2 bg-primary/15 border border-primary/50 text-primary rounded-md py-2 text-sm font-medium hover:bg-primary/25 hover:glow-teal transition-all"
-          >
-            <Plus className="w-4 h-4" /> New profile
-          </button>
-        </div>
-      </section>
 
-      {/* CENTER — Generator */}
-      <section className="flex-1 min-w-0 overflow-y-auto">
-        <header className="px-8 py-5 border-b border-border/60 flex items-center justify-between">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. Patient shows elevated distress in environments with multiple overlapping voices, particularly when unable to identify an exit. History of combat PTSD. Crowded transit seems to be a primary trigger."
+          className="w-full min-h-[140px] bg-input border border-border rounded-md p-3 text-sm font-sans focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 resize-y placeholder:text-muted-foreground/60"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="mono text-[10px] tracking-[0.2em] text-muted-foreground">RESEARCHER IDE</div>
-            <h1 className="text-xl font-semibold mt-0.5">Profile Generator</h1>
-          </div>
-          <div className="mono text-[11px] text-muted-foreground flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
-            backend: localhost:8000
-          </div>
-        </header>
-
-        <div className="px-8 py-10 max-w-[760px] mx-auto">
-          {/* Mic */}
-          <div className="flex flex-col items-center">
-            <div className="relative w-40 h-40 grid place-items-center">
-              {recording && (
-                <>
-                  <span className="absolute inset-0 rounded-full border-2 border-primary/60 animate-pulse-ring" />
-                  <span
-                    className="absolute inset-0 rounded-full border-2 border-primary/40 animate-pulse-ring"
-                    style={{ animationDelay: "0.6s" }}
-                  />
-                  <span
-                    className="absolute inset-0 rounded-full border border-primary/20 animate-pulse-ring"
-                    style={{ animationDelay: "1.2s" }}
-                  />
-                </>
-              )}
-              <button
-                onClick={handleRecord}
-                className={cn(
-                  "relative w-28 h-28 rounded-full grid place-items-center transition-all border",
-                  recording
-                    ? "bg-primary text-primary-foreground border-primary glow-teal"
-                    : "bg-surface-elevated border-primary/40 text-primary hover:bg-primary/10 hover:glow-teal",
-                )}
-              >
-                <Mic className="w-9 h-9" />
-              </button>
-            </div>
-            <div className="mt-4 mono text-xs tracking-widest text-muted-foreground">
-              {recording ? "LISTENING…" : "DESCRIBE THE TRIGGER SCENARIO"}
-            </div>
-          </div>
-
-          {/* Transcript */}
-          <div className="mt-8">
-            <div className="mono text-[10px] tracking-[0.2em] text-muted-foreground mb-2">TRANSCRIPT</div>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              rows={4}
-              placeholder="Voice transcript will appear here…"
-              className="w-full bg-input/40 border border-border rounded-lg p-4 text-sm leading-relaxed mono placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60 resize-none"
-            />
-          </div>
-
-          {/* Generate button */}
-          <div className="mt-6 flex justify-center">
-            <button
-              onClick={handleGenerate}
-              disabled={!transcript.trim() || generating}
-              className={cn(
-                "inline-flex items-center gap-2 px-6 py-2.5 rounded-md border text-sm font-medium transition-all",
-                generating
-                  ? "bg-primary/10 border-primary/40 text-primary"
-                  : "bg-primary/15 border-primary/60 text-primary hover:bg-primary/25 hover:glow-teal disabled:opacity-40 disabled:hover:bg-primary/15 disabled:hover:shadow-none",
-              )}
+            <div className="label-tiny mb-1.5">Patient</div>
+            <select
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary"
             >
-              {generating ? <Loader2 className="w-4 h-4 animate-spin-slow" /> : null}
-              {generating ? "Generating baseline…" : "Generate baseline"}
-            </button>
+              {PATIENTS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
-
-          {/* Metrics */}
-          {baseline?.metrics && (
-            <div className="mt-10 grid grid-cols-4 gap-3 animate-fade-in">
-              <MetricTile label="dB threshold" value={baseline.metrics.db_threshold} unit="dB" />
-              <MetricTile label="Voice overlap" value={baseline.metrics.voice_overlap} unit="voices" />
-              <MetricTile
-                label="Freq variance"
-                value={baseline.metrics.freq_variance}
-                unit="σ"
-                decimals={2}
-              />
-              <MetricTile label="Safe window" value={baseline.metrics.safe_window} unit="sec" />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* RIGHT — Distribution */}
-      <section className="w-[320px] shrink-0 bg-surface/60 border-l border-border/60 flex flex-col">
-        <div className="px-5 py-5 border-b border-border/60">
-          <div className="mono text-[10px] tracking-[0.2em] text-muted-foreground">DISTRIBUTION</div>
-          <h2 className="text-base font-semibold mt-0.5">Acoustic envelope</h2>
-        </div>
-
-        <div className="p-5 flex-1 flex flex-col">
-          <div className="relative h-[240px] panel p-3">
-            <Line data={chartData} options={chartOptions} />
-            {/* Threshold line */}
-            <div
-              className="absolute top-3 bottom-8 pointer-events-none"
-              style={{ left: `calc(${(threshold / 100) * 100}% )` }}
+          <div>
+            <div className="label-tiny mb-1.5">Trigger category</div>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as TriggerCategory)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary"
             >
-              <div className="w-px h-full bg-warning shadow-[0_0_10px_hsl(var(--warning))]" />
-              <div className="absolute -top-1 -translate-x-1/2 w-3 h-3 rounded-full bg-warning glow-violet" />
-            </div>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between mono text-[10px] text-muted-foreground mb-1">
-              <span>THRESHOLD</span>
-              <span className="text-warning">{threshold} dB</span>
-            </div>
-            <input
-              type="range"
-              min={40}
-              max={95}
-              value={threshold}
-              onChange={(e) => setThreshold(+e.target.value)}
-              className="w-full accent-warning"
-            />
-          </div>
-
-          <div className="mt-5 flex items-center gap-4 mono text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-primary rounded-sm" /> SAFE</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-destructive rounded-sm" /> DANGER</span>
-          </div>
-
-          <button
-            onClick={handleDeploy}
-            disabled={!baseline}
-            className={cn(
-              "mt-auto w-full flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-semibold transition-all",
-              deployed
-                ? "bg-primary text-primary-foreground glow-teal"
-                : "bg-primary text-primary-foreground hover:glow-teal disabled:opacity-30",
-            )}
-          >
-            {deployed ? (
-              <>
-                <Check className="w-4 h-4 animate-fade-in" /> Deployed to Patient A
-              </>
-            ) : (
-              <>Deploy to Patient A</>
-            )}
-          </button>
         </div>
-      </section>
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="w-full bg-primary text-primary-foreground hover:bg-primary-glow transition-colors rounded-md py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-70 glow-teal"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+          {loading ? STATUS_MSGS[statusIdx] : "Generate neuroscience profile"}
+        </button>
+
+        {loading && (
+          <div className="flex justify-center py-6">
+            <div className="relative w-16 h-16 grid place-items-center">
+              <span className="absolute inset-0 rounded-full border border-primary/40 animate-pulse-ring" />
+              <span className="absolute inset-0 rounded-full border border-primary/40 animate-pulse-ring" style={{ animationDelay: "0.6s" }} />
+              <Brain className="w-6 h-6 text-primary" />
+            </div>
+          </div>
+        )}
+
+        {generated && <GeneratedCard profile={generated} onChange={setGenerated} />}
+      </div>
+
+      {/* Right column */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Neuroscience signal breakdown</h2>
+            <p className="text-xs text-muted-foreground mt-1">Six-axis comparison of safe baseline vs. generated danger profile.</p>
+          </div>
+          <div className="label-tiny">{generated ? generated.name : "Showing reference profile"}</div>
+        </div>
+
+        <div className="panel p-5 mb-5" style={{ height: 460 }}>
+          <Radar data={radarData} options={radarOptions} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {FEATURE_EXPLAINERS.map((f) => {
+            const Icon = ICONS[f.icon];
+            return (
+              <div key={f.key} className="bg-card border border-border rounded-md p-4 border-l-2 border-l-primary/70">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Icon className="w-4 h-4 text-primary" />
+                  <div className="text-sm font-semibold">{f.name}</div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };
 
-const MetricTile = ({
-  label,
-  value,
-  unit,
-  decimals = 0,
-}: { label: string; value: number; unit: string; decimals?: number }) => (
-  <div className="panel p-4 hover:border-primary/40 transition-colors">
-    <div className="mono text-[9px] tracking-[0.18em] text-muted-foreground uppercase">{label}</div>
-    <div className="mt-2 flex items-baseline gap-1.5">
-      <CountUp
-        value={value}
-        decimals={decimals}
-        className="mono text-2xl font-bold text-primary text-glow-teal tabular-nums"
-      />
-      <span className="mono text-[10px] text-muted-foreground">{unit}</span>
+const GeneratedCard = ({ profile, onChange }: { profile: Profile; onChange: (p: Profile) => void }) => {
+  const m = profile.metrics;
+  const chips = [
+    { label: "Spectral flux thresh.", value: m.spectral_flux_threshold.toFixed(2) },
+    { label: "MFCC anomaly", value: m.mfcc_anomaly_score.toFixed(2) },
+    { label: "Spectral centroid", value: `${m.spectral_centroid} Hz` },
+    { label: "ZCR baseline", value: m.zcr_baseline.toFixed(2) },
+    { label: "Breath rate ceil.", value: `${m.breath_rate_ceiling}/min` },
+    { label: "Pitch variance max", value: `${m.pitch_variance_max} Hz` },
+  ];
+  return (
+    <div className="panel p-4 animate-fade-in space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="mono text-sm font-bold text-primary text-glow-teal">{profile.name}</div>
+        <span className="mono text-[10px] tracking-widest px-2 py-1 rounded-sm bg-primary/15 text-primary border border-primary/40">
+          {profile.trigger_category.toUpperCase()}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {chips.map((c) => (
+          <div key={c.label} className="bg-input/60 border border-border rounded-sm px-2.5 py-2">
+            <div className="label-tiny">{c.label}</div>
+            <div className="mono text-sm font-semibold text-foreground mt-0.5">{c.value}</div>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className="flex items-center justify-between label-tiny mb-1.5">
+          <span>Anomaly sensitivity</span>
+          <span className="mono text-primary">{m.anomaly_sensitivity.toFixed(2)}</span>
+        </div>
+        <input
+          type="range" min={0} max={1} step={0.01}
+          value={m.anomaly_sensitivity}
+          onChange={(e) => onChange({ ...profile, metrics: { ...m, anomaly_sensitivity: +e.target.value } })}
+          className="w-full accent-primary"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <button className="bg-surface-elevated border border-border hover:border-primary/60 text-sm rounded-md py-2 flex items-center justify-center gap-2 transition-colors">
+          <Save className="w-3.5 h-3.5" /> Save to patient
+        </button>
+        <button className="bg-primary text-primary-foreground hover:bg-primary-glow text-sm rounded-md py-2 flex items-center justify-center gap-2 font-semibold transition-colors">
+          <Rocket className="w-3.5 h-3.5" /> Deploy to sentinel
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default ResearcherIDE;

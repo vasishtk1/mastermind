@@ -5,7 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { EmberLayout } from "@/components/ember/EmberLayout";
 import ResearcherIDE from "./pages/ResearcherIDE.tsx";
-import EdgeSentinel from "./pages/EdgeSentinel.tsx";
+import PatientMonitor from "./pages/PatientMonitor.tsx";
+import PatientProfiles from "./pages/PatientProfiles.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -19,7 +20,8 @@ const App = () => (
         <Routes>
           <Route element={<EmberLayout />}>
             <Route path="/" element={<ResearcherIDE />} />
-            <Route path="/sentinel" element={<EdgeSentinel />} />
+            <Route path="/sentinel" element={<PatientMonitor />} />
+            <Route path="/patients" element={<PatientProfiles />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
