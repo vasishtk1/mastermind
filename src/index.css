@@ -54,17 +54,17 @@
     --shadow-glow-teal: 0 0 24px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.12);
     --shadow-glow-violet: 0 0 24px hsl(var(--secondary) / 0.4);
     --shadow-glow-danger: 0 0 32px hsl(var(--danger) / 0.55);
-    --shadow-panel: 0 4px 24px hsl(222 60% 2% / 0.6);
-  }
+  --shadow-panel: 0 4px 24px hsl(222 60% 2% / 0.6);
 
-  --sidebar-background: 224 50% 5%;
-  --sidebar-foreground: 200 30% 92%;
-  --sidebar-primary: 171 100% 42%;
-  --sidebar-primary-foreground: 222 44% 6%;
-  --sidebar-accent: 222 38% 9%;
-  --sidebar-accent-foreground: 200 30% 92%;
-  --sidebar-border: 222 35% 17%;
-  --sidebar-ring: 171 100% 42%;
+    --sidebar-background: 224 50% 5%;
+    --sidebar-foreground: 200 30% 92%;
+    --sidebar-primary: 171 100% 42%;
+    --sidebar-primary-foreground: 222 44% 6%;
+    --sidebar-accent: 222 38% 9%;
+    --sidebar-accent-foreground: 200 30% 92%;
+    --sidebar-border: 222 35% 17%;
+    --sidebar-ring: 171 100% 42%;
+  }
 }
 
 @layer base {
