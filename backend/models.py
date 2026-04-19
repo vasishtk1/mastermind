@@ -122,6 +122,7 @@ class IncidentModelMeta(BaseModel):
     gemma_action: str = ""
     gemma_success: Optional[bool] = None
     gemma_total_time_ms: Optional[float] = None
+    gemma_raw_response_json: Optional[str] = None
 
 
 class IncomingIncidentPayload(BaseModel):
@@ -265,6 +266,33 @@ class TelemetryBatchPayload(BaseModel):
     audio: Dict = Field(default_factory=dict)
     motion: Dict = Field(default_factory=dict)
     pointer: Dict = Field(default_factory=dict)
+
+
+class GemmaMetricsIncidentPayload(BaseModel):
+    """Simple JSON ingestion payload from Gemma metrics UIs.
+
+    Intended shape:
+      {
+        "patient_id": "pat-test-1",
+        "description": "optional text",
+        "metrics": {
+          "anomalyScore": 0.2,
+          "f0Hz": 480,
+          "rmsDb": -48.6,
+          "spectralCentroid": 1361.0,
+          "spectralFlux": 0.000001,
+          "zcr": 468.75
+        }
+      }
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    patient_id: str
+    description: str = ""
+    metrics: Dict[str, float] = Field(default_factory=dict)
+    source: str = "web_gemma_json"
+    created_at: Optional[datetime] = None
 
 
 class DirectivePayload(BaseModel):

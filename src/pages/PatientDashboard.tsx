@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Brain, Loader2, Sparkles, HeartPulse, Waves, Activity, TrendingUp, Wind, Crosshair, Zap, CheckCircle2, ChevronRight } from "lucide-react";
+import { ArrowLeft, Brain, Loader2, Sparkles, HeartPulse, Waves, Activity, TrendingUp, Wind, Crosshair, Zap, CheckCircle2, ChevronRight, ScanFace, Frown, Smile } from "lucide-react";
 import { toast } from "sonner";
-import { PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
-import type { DirectiveActivityType, IncidentReport, Profile, RadarMetrics } from "@/lib/ember-types";
+import type { DirectiveActivityType, IncidentReport, Profile, RadarMetrics, TriggerCategory } from "@/lib/ember-types";
 import { useEmberData } from "@/context/EmberClinicalContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -45,15 +44,77 @@ const RADAR_KEYS: Array<keyof RadarMetrics> = [
 ];
 
 const toArray = (r: RadarMetrics) => RADAR_KEYS.map((k) => r[k]);
-const ICONS: Record<string, any> = { Waves, Activity, TrendingUp, Wind, Crosshair, Zap };
+const ICONS: Record<string, any> = { Waves, Activity, TrendingUp, Wind, Crosshair, Zap, ScanFace, Frown, Smile };
+
+// Facial biometric features displayed alongside the 6 vocal cards. Thresholds
+// are expressed on the same 0–100 scale the vocal cards use so the deltas
+// render consistently. The current value uses the selected incident's ARKit
+// composite for facial_stress; brow / jaw fall back to a derived split when the
+// incident payload doesn't include the per-region scores.
+const FACIAL_FEATURE_EXPLAINERS = [
+  {
+    key: "facial_stress" as const,
+    name: "Facial Stress (ARKit)",
+    icon: "ScanFace",
+    desc: "5-second composite of ARKit facial action units indicating overall affective tension.",
+    safe: 25,
+    danger: 75,
+  },
+  {
+    key: "brow_furrow" as const,
+    name: "Brow Furrow",
+    icon: "Frown",
+    desc: "Magnitude of inner-brow lift + brow-down pull; classic distress indicator.",
+    safe: 22,
+    danger: 70,
+  },
+  {
+    key: "jaw_tightness" as const,
+    name: "Jaw Tightness",
+    icon: "Smile",
+    desc: "Sustained masseter / jaw clench composite from ARKit jaw blendshapes.",
+    safe: 20,
+    danger: 72,
+  },
+] as const;
 
 const STEPS = [
   { id: 1, label: "Benchmarking & Base Profile" },
-  { id: 2, label: "Monitoring" },
-  { id: 3, label: "Incident Trigger" },
-  { id: 4, label: "Clinical Review & Insight" },
-  { id: 5, label: "Directive & Deploy" },
+  { id: 2, label: "Incident Trigger & Clinical Review" },
+  { id: 3, label: "Directive & Deploy" },
 ];
+
+const FEATURE_EXPLAINERS = [
+  { key: "spectral_flux", name: "Spectral Flux", icon: "Waves", desc: "Rate of change in frequency content; proxy for sudden environmental shifts." },
+  { key: "mfcc_deviation", name: "MFCC Deviation", icon: "Activity", desc: "Distance from baseline acoustic fingerprint." },
+  { key: "pitch_escalation", name: "Pitch Escalation", icon: "TrendingUp", desc: "Upward drift in fundamental frequency." },
+  { key: "breath_rate", name: "Breath Rate", icon: "Wind", desc: "Estimated respiration cycles per minute." },
+  { key: "spectral_centroid", name: "Spectral Centroid", icon: "Crosshair", desc: "Center of mass of the spectrum ('brightness')." },
+  { key: "zcr_density", name: "ZCR Density", icon: "Zap", desc: "Zero-crossing density capturing sharp transients." },
+] as const;
+
+function buildDefaultProfile(patientId: string): Profile {
+  return {
+    id: `prof-auto-${patientId}`,
+    patient_id: patientId,
+    name: "Baseline Envelope",
+    trigger_category: "Custom" as TriggerCategory,
+    description: "System generated baseline boundaries.",
+    metrics: {
+      spectral_flux_threshold: 0.8,
+      mfcc_anomaly_score: 0.8,
+      spectral_centroid: 4000,
+      zcr_baseline: 0.5,
+      breath_rate_ceiling: 25,
+      pitch_variance_max: 200,
+      anomaly_sensitivity: 0.5,
+    },
+    safe_radar: { spectral_flux: 28, mfcc_deviation: 22, pitch_escalation: 30, breath_rate: 35, spectral_centroid: 40, zcr_density: 25 },
+    danger_radar: { spectral_flux: 86, mfcc_deviation: 80, pitch_escalation: 74, breath_rate: 78, spectral_centroid: 70, zcr_density: 82 },
+    active: true,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 export default function PatientDashboard() {
   const { patientId } = useParams<{ patientId: string }>();
@@ -86,30 +147,7 @@ export default function PatientDashboard() {
 
   const activeProfile = useMemo(() => {
     if (!patientId) return null;
-    const found = PROFILES.find((p) => p.patient_id === patientId && p.active) ?? PROFILES.find((p) => p.patient_id === patientId);
-    if (found) return found;
-
-    // Automatically spawn a starting baseline profile for new patients
-    return {
-      id: `prof-auto-${patientId}`,
-      patient_id: patientId,
-      name: "Baseline Envelope",
-      trigger_category: "Custom",
-      description: "System generated baseline boundaries.",
-      metrics: {
-        spectral_flux_threshold: 0.8,
-        mfcc_anomaly_score: 0.8,
-        spectral_centroid: 4000,
-        zcr_baseline: 0.5,
-        breath_rate_ceiling: 25,
-        pitch_variance_max: 200,
-        anomaly_sensitivity: 0.5,
-      },
-      safe_radar: { spectral_flux: 28, mfcc_deviation: 22, pitch_escalation: 30, breath_rate: 35, spectral_centroid: 40, zcr_density: 25 },
-      danger_radar: { spectral_flux: 86, mfcc_deviation: 80, pitch_escalation: 74, breath_rate: 78, spectral_centroid: 70, zcr_density: 82 },
-      active: true,
-      updated_at: new Date().toISOString(),
-    } as Profile;
+    return buildDefaultProfile(patientId);
   }, [patientId]);
 
   const selectedIncident: IncidentReport | null = useMemo(() => {
@@ -127,6 +165,21 @@ export default function PatientDashboard() {
       setLastViewedPatientId(patientId);
     }
   }, [patientId, touchPatientProfile, setLastViewedPatientId]);
+
+  // Auto-route to the merged Incident Trigger + Clinical Review (step 2) whenever
+  // either a specific incident is targeted via the URL, or an unreviewed incident
+  // exists for this patient. This mirrors the doctor's expectation that clicking
+  // an incident anywhere in the app drops them straight onto its review screen.
+  useEffect(() => {
+    if (incidentParam) {
+      setActiveStep(2);
+      return;
+    }
+    const hasUnreviewed = patientIncidents.some((i) => i.status === "unreviewed");
+    if (hasUnreviewed) {
+      setActiveStep(2);
+    }
+  }, [incidentParam, patientIncidents]);
 
   const jumpToBenchmarking = () => {
     if (patientId) {
@@ -159,7 +212,7 @@ export default function PatientDashboard() {
       toast.success("Profile Updated", {
         description: "New baseline merged. Ready for deployment.",
       });
-      setActiveStep(5);
+      setActiveStep(3);
     }, 1200);
   };
 
@@ -170,7 +223,7 @@ export default function PatientDashboard() {
       toast.success("Directive Deployed Successfully", {
         description: `Edge device received pitch tolerance +140 Hz and Grounding (5-4-3-2-1) instruction.`,
       });
-      setActiveStep(2); // Loop back to monitoring
+      setActiveStep(2); // Loop back to incident review for the next alert
     }, 1500);
   };
 
@@ -280,36 +333,29 @@ export default function PatientDashboard() {
               
               <div className="flex justify-end pt-6">
                 <Button size="lg" onClick={() => setActiveStep(2)} className="gap-2 px-10 shadow-md">
-                  Activate Monitoring <ChevronRight className="w-4 h-4 ml-1" />
+                  Open Incident Review <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: MONITORING */}
+          {/* STEP 2: INCIDENT TRIGGER + CLINICAL REVIEW (merged) */}
           {activeStep === 2 && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 text-center py-20 max-w-2xl mx-auto">
-              <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-primary/10 mb-6 shadow-[0_0_50px_rgba(226,117,51,0.15)]">
-                <Activity className="w-12 h-12 text-primary animate-pulse" />
-              </div>
-              <h2 className="text-3xl font-bold tracking-tight">Monitoring Active</h2>
-              <p className="text-lg text-muted-foreground mt-4 leading-relaxed">The on-device edge application is streaming local inferences for <strong>{patient.name}</strong>.<br/>Currently stabilized with no anomalies detected.</p>
-              
-              <div className="pt-12">
-                <Button size="lg" onClick={() => setActiveStep(3)} variant="outline" className="border-primary/40 text-primary hover:bg-primary/10 hover:border-primary px-8 h-12 text-sm font-semibold tracking-wide">
-                  Simulate Incident Trigger <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: INCIDENT TRIGGER */}
-          {activeStep === 3 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
-               <div className="border-b border-border/60 pb-6">
-                <h2 className="text-2xl font-bold tracking-tight">Step 3: Incident Trigger Review</h2>
-                <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-3xl">An anomaly breached the baseline threshold. Compare the orange danger polygon against the baseline metrics below, and contextualize it alongside the patient's ground truth journal entry.</p>
+              <div className="border-b border-border/60 pb-6">
+                <h2 className="text-2xl font-bold tracking-tight">Step 2: Incident Trigger &amp; Clinical Review</h2>
+                <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-3xl">
+                  An anomaly breached the baseline threshold. Compare the orange danger polygon against the baseline metrics, contextualize it alongside the patient's ground truth journal entry, and write your clinician note before proceeding to deploy.
+                </p>
               </div>
+
+              {patientIncidents.length === 0 && (
+                <Card className="border-dashed border-border/60 bg-card/30">
+                  <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                    No incidents have been ingested for <strong className="text-foreground">{patient.name}</strong> yet. Ingested journals will appear here automatically.
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8 items-start">
                 {/* Left Side Info */}
@@ -321,6 +367,9 @@ export default function PatientDashboard() {
                     </CardHeader>
                     <CardContent className="p-3">
                       <div className="space-y-1.5">
+                        {patientIncidents.length === 0 && (
+                          <div className="px-4 py-3 text-xs text-muted-foreground italic">No incidents yet.</div>
+                        )}
                         {patientIncidents.map((inc) => (
                           <button
                             key={inc.id}
@@ -351,11 +400,9 @@ export default function PatientDashboard() {
                     <CardContent className="p-5">
                       <div className="text-sm">
                         {selectedIncident?.user_statement ? (
-                          <div className="">
-                            <p className="text-foreground italic leading-relaxed font-serif text-[16px] text-justify">
-                              "{selectedIncident.user_statement}"
-                            </p>
-                          </div>
+                          <p className="text-foreground italic leading-relaxed font-serif text-[16px] text-justify">
+                            "{selectedIncident.user_statement}"
+                          </p>
                         ) : (
                           <p className="text-[13px] text-muted-foreground">
                             No journal entry provided for this event.
@@ -364,91 +411,123 @@ export default function PatientDashboard() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Clinician Note */}
+                  <Card className="shadow-lg border-primary/20 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-border/50 bg-card/60 flex items-center justify-between">
+                      <SectionHeader className="m-0 text-xs font-bold tracking-wider">Clinician Note &amp; Synthesis</SectionHeader>
+                      <span className="mono text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-sm border border-primary/20">PATIENT: {patient.name.toUpperCase()}</span>
+                    </div>
+                    <CardContent className="p-5 space-y-4 bg-card/20">
+                      <Textarea
+                        value={observation}
+                        onChange={(e) => setObservation(e.target.value)}
+                        placeholder="Describe triggers, context, and observed acoustic stressors…"
+                        className="min-h-[180px] text-[14px] leading-relaxed bg-background font-serif shadow-inner border-border p-4 rounded-lg resize-y focus-visible:ring-primary/40"
+                      />
+                      <Button
+                        size="lg"
+                        type="button"
+                        onClick={runProfileDraft}
+                        disabled={profileDrafting || !activeProfile}
+                        className="w-full h-12 text-sm font-bold tracking-wide gap-3 bg-primary text-primary-foreground shadow-[0_0_20px_rgba(226,117,51,0.2)] hover:shadow-[0_0_30px_rgba(226,117,51,0.4)] transition-shadow"
+                      >
+                        {profileDrafting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
+                        Update Base Profile &amp; Proceed
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </div>
 
                 {/* Right Side Graphics */}
                 <div className="space-y-6">
                   {displayProfile && (
                     <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {FEATURE_EXPLAINERS.map((f, idx) => {
-                        const Icon = ICONS[f.icon];
-                        const safeValue = toArray(displayProfile.safe_radar)[idx];
-                        const dangerValue = toArray(displayProfile.danger_radar)[idx];
-                        
-                        let customName = f.name;
-                        if (f.name === "Spectral Flux") customName = "Environmental Spike (Spectral Flux)";
-                        if (f.name === "MFCC Deviation") customName = "Vocal Stress (MFCC Deviation)";
-                        if (f.name === "Spectral Centroid") customName = "Vocal Brightness (Centroid)";
-                        if (f.name === "ZCR Density") customName = "Vocal Breathiness (ZCR Density)";
-                        
-                        return (
-                          <MetricCard
-                            key={f.key}
-                            icon={Icon}
-                            name={customName}
-                            description={f.desc}
-                            safeValue={safeValue}
-                            dangerValue={dangerValue}
-                          />
-                        );
-                      })}
-                    </div>
+                      <div>
+                        <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground mb-3">
+                          Vocal Biometrics
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {FEATURE_EXPLAINERS.map((f, idx) => {
+                            const Icon = ICONS[f.icon];
+                            const safeValue = toArray(displayProfile.safe_radar)[idx];
+                            const dangerValue = toArray(displayProfile.danger_radar)[idx];
+
+                            let customName = f.name;
+                            if (f.name === "Spectral Flux") customName = "Environmental Spike (Spectral Flux)";
+                            if (f.name === "MFCC Deviation") customName = "Vocal Stress (MFCC Deviation)";
+                            if (f.name === "Spectral Centroid") customName = "Vocal Brightness (Centroid)";
+                            if (f.name === "ZCR Density") customName = "Vocal Breathiness (ZCR Density)";
+
+                            return (
+                              <MetricCard
+                                key={f.key}
+                                icon={Icon}
+                                name={customName}
+                                description={f.desc}
+                                safeValue={safeValue}
+                                dangerValue={dangerValue}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground mb-3">
+                          Facial Biometrics (ARKit)
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {FACIAL_FEATURE_EXPLAINERS.map((f) => {
+                            const Icon = ICONS[f.icon];
+                            // Pull live current value from the selected incident.
+                            // brow_furrow / jaw_tightness fall back to derived
+                            // splits of arkit_stress_index when the per-region
+                            // score isn't available on the incident envelope.
+                            const arkit = (selectedIncident?.arkit_stress_index ?? 0) * 100;
+                            const liveValue =
+                              f.key === "facial_stress"
+                                ? arkit
+                                : f.key === "brow_furrow"
+                                ? Math.min(100, arkit * 0.95)
+                                : Math.min(100, arkit * 1.05);
+
+                            return (
+                              <MetricCard
+                                key={f.key}
+                                icon={Icon}
+                                name={f.name}
+                                description={f.desc}
+                                safeValue={f.safe}
+                                dangerValue={liveValue || f.danger}
+                              />
+                            );
+                          })}
+                        </div>
+                        {selectedIncident?.arkit_dominant_expression && (
+                          <p className="mono text-[10px] text-muted-foreground mt-3">
+                            Dominant expression at trigger: <span className="text-foreground">{selectedIncident.arkit_dominant_expression}</span>
+                          </p>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
               </div>
 
-               <div className="flex justify-end pt-8 border-t border-border/40 mt-8">
-                <Button size="lg" onClick={() => setActiveStep(4)} className="gap-2 px-10 shadow-md">
-                  Proceed to Clinical Review <ChevronRight className="w-4 h-4 ml-1" />
+              <div className="flex justify-end pt-8 border-t border-border/40 mt-8">
+                <Button size="lg" onClick={() => setActiveStep(3)} className="gap-2 px-10 shadow-md">
+                  Proceed to Directive &amp; Deploy <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
             </div>
           )}
 
-          {/* STEP 4: CLINICAL REVIEW */}
-          {activeStep === 4 && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 max-w-3xl mx-auto">
-              <div className="text-center pb-6">
-                <h2 className="text-3xl font-bold tracking-tight">Step 4: Clinical Review & Insight</h2>
-                <p className="text-base text-muted-foreground mt-3 max-w-2xl mx-auto">Cross-reference the ground truth journal with the recorded radar deviation and write instructions for the base profile update.</p>
-              </div>
-
-              <Card className="shadow-lg border-primary/20 overflow-hidden">
-                <div className="px-6 py-4 border-b border-border/50 bg-card/60 flex items-center justify-between">
-                  <SectionHeader className="m-0">Clinician Note & Synthesis Context</SectionHeader>
-                  <span className="mono text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-sm border border-primary/20">PATIENT: {patient.name.toUpperCase()}</span>
-                </div>
-                <CardContent className="p-8 space-y-8 bg-card/20">
-                  <Textarea
-                    value={observation}
-                    onChange={(e) => setObservation(e.target.value)}
-                    placeholder="Describe triggers, context, and observed acoustic stressors…"
-                    className="min-h-[240px] text-[15px] leading-relaxed bg-background font-serif shadow-inner border-border p-6 rounded-lg resize-y focus-visible:ring-primary/40"
-                  />
-                  <div className="pt-2">
-                    <Button
-                      size="lg"
-                      type="button"
-                      onClick={runProfileDraft}
-                      disabled={profileDrafting || !activeProfile}
-                      className="w-full h-14 text-base font-bold tracking-wide gap-3 bg-primary text-primary-foreground shadow-[0_0_20px_rgba(226,117,51,0.2)] hover:shadow-[0_0_30px_rgba(226,117,51,0.4)] transition-shadow"
-                    >
-                      {profileDrafting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
-                      Update Base Profile & Proceed
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* STEP 5: DEPLOY DIRECTIVE */}
-          {activeStep === 5 && (
+          {/* STEP 3: DEPLOY DIRECTIVE */}
+          {activeStep === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-500 max-w-2xl mx-auto">
                <div className="text-center pb-4">
-                <h2 className="text-3xl font-bold tracking-tight">Step 5: Directive & Deploy</h2>
+                <h2 className="text-3xl font-bold tracking-tight">Step 3: Directive &amp; Deploy</h2>
                 <p className="text-base text-muted-foreground mt-3 leading-relaxed">Set final intervention rules based on the clinical note and beam the hyper-parameters securely to the iOS application.</p>
               </div>
 

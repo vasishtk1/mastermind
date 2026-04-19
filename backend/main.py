@@ -3,6 +3,7 @@
 Endpoints:
   POST /api/events                              Ingest device event → generate + persist clinical report → sync Convex.
   POST /api/incidents                           Ingest iOS biometric incident (Gemma audio + facial) → sync Convex.
+  POST /api/journals/upload                     Ingest iOS journal upload metadata → sync Convex journalEntries.
   GET  /api/patients/{patient_id}/reports       Return all clinical reports for a patient from DB.
   POST /api/patients/{patient_id}/remediate     Generate an LLM-proposed device config patch.
   GET  /api/evals/latest                        Return the most recent eval-harness summary from DB.
@@ -14,14 +15,17 @@ Swap SQLALCHEMY_DATABASE_URL in database.py for postgresql+asyncpg://... in prod
 """
 
 import asyncio
+import json
+import math
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +38,7 @@ from models import (
     DirectivePayload,
     DirectiveResponse,
     EvalSummary,
+    GemmaMetricsIncidentPayload,
     IncomingDeviceEvent,
     IncomingIncidentPayload,
     MonitorResult,
@@ -114,6 +119,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _initials(name: str) -> str:
+    parts = [p for p in re.split(r"\s+", name.strip()) if p]
+    if not parts:
+        return "UN"
+    if len(parts) == 1:
+        token = parts[0][:2].upper()
+        return token if len(token) == 2 else f"{token}N"
+    return f"{parts[0][0]}{parts[-1][0]}".upper()
+
+
+def _severity_from_scores(facial_stress: float, mfcc_deviation: Optional[float]) -> str:
+    mfcc_norm = 0.0 if mfcc_deviation is None else max(0.0, min(1.0, mfcc_deviation / 10.0))
+    score = max(0.0, min(1.0, 0.65 * facial_stress + 0.35 * mfcc_norm))
+    if score >= 0.85:
+        return "critical"
+    if score >= 0.65:
+        return "high"
+    if score >= 0.4:
+        return "moderate"
+    return "low"
+
+
+def _dominant_expression(facial_data: Optional[Dict[str, float]]) -> str:
+    if not facial_data:
+        return "not_available"
+    filtered = [(k, float(v)) for k, v in facial_data.items() if isinstance(v, (int, float))]
+    if not filtered:
+        return "not_available"
+    filtered.sort(key=lambda item: item[1], reverse=True)
+    top = [name for name, _ in filtered[:2]]
+    return " + ".join(top)
 
 
 # ---------------------------------------------------------------------------
@@ -260,23 +298,245 @@ async def ingest_incident(payload: IncomingIncidentPayload) -> dict:
     """
     # Resolve patient_id: payload field or fall back to a generic identifier.
     patient_id: str = payload.patient_id or "unknown"
+    created_at = payload.created_at or datetime.now(timezone.utc)
+    note_text = payload.text or ""
+    audio = payload.biometrics.audio if payload.biometrics else None
+    facial_data = payload.facial_data or {}
+    facial_stress = float(facial_data.get("facial_stress_score", 0.0) or 0.0)
+    severity = _severity_from_scores(facial_stress, audio.mfcc_deviation if audio else None)
+    incident_id = str(uuid.uuid4())
+    patient_name = patient_id
+    gemma_action = payload.gemma_action or (payload.model.gemma_action if payload.model else "journal_analysis")
+
+    await call_mutation(
+        "patients:upsert",
+        {
+            "patientId": patient_id,
+            "name": patient_name,
+            "initials": _initials(patient_name),
+            "dob": "1970-01-01",
+            "condition": "Journal monitoring",
+            "clinician": "Dr. T",
+            "accent": "teal",
+            "lastActivity": created_at.isoformat(),
+        },
+    )
 
     # Push the full biometric audio block to Convex mastermindIncidents.
-    audio = payload.biometrics.audio if payload.biometrics else None
     if audio is not None:
+        full_payload = payload.model_dump(mode="json")
         await call_mutation(
-            "incidents:ingest",
+            "mastermindIncidents:ingest",
             {
                 "patientId": patient_id,
                 "biometrics": {"audio": audio.model_dump()},
+                "payload": full_payload,
                 "payloadVersion": "ios-1.0",
             },
         )
+
+    incident_payload = {
+        "id": incident_id,
+        "patient_id": patient_id,
+        "patient_name": patient_name,
+        "patient_initials": _initials(patient_name),
+        "patient_accent": "teal",
+        "timestamp": created_at.isoformat(),
+        "trigger_type": f"{payload.journal_kind or 'journal'}_journal_biometrics",
+        "acoustic_variance": (
+            max(0.0, min(1.0, audio.mfcc_deviation / 10.0)) if audio is not None else 0.0
+        ),
+        "peak_db": (
+            max(0, min(100, int(round(20 * math.log10(max(audio.rms, 1e-6)) + 100))))
+            if audio is not None
+            else 0
+        ),
+        "user_statement": note_text if note_text else "Journal uploaded from iOS.",
+        "arkit_stress_index": facial_stress,
+        "arkit_dominant_expression": _dominant_expression(facial_data),
+        "on_device_action": gemma_action,
+        "stabilized": bool(payload.model.gemma_success) if payload.model and payload.model.gemma_success is not None else False,
+        "severity": severity,
+        "status": "unreviewed",
+    }
+    await call_mutation(
+        "emberIncidents:upsert",
+        {
+            "incidentId": incident_id,
+            "patientId": patient_id,
+            "payload": incident_payload,
+        },
+    )
+
+    journal_json = {
+        "patient_id": patient_id,
+        "journal_kind": payload.journal_kind,
+        "created_at": created_at.isoformat(),
+        "text": note_text,
+        "gemma_action": gemma_action,
+        "gemma_success": payload.model.gemma_success if payload.model else None,
+        "gemma_total_time_ms": payload.model.gemma_total_time_ms if payload.model else None,
+        "audio_metrics": audio.model_dump() if audio is not None else None,
+        "facial_data": facial_data,
+        "context": payload.context,
+    }
+    await call_mutation(
+        "journals:add",
+        {
+            "patientId": patient_id,
+            "content": json.dumps(journal_json, separators=(",", ":"), ensure_ascii=True),
+            "moodScore": max(0, min(10, int(round((1.0 - facial_stress) * 10)))),
+            "source": "ios",
+        },
+    )
 
     return {
         "status": "accepted",
         "patient_id": patient_id,
         "audio_synced": audio is not None,
+        "incident_id": incident_id,
+    }
+
+
+@app.post(
+    "/api/journals/upload",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Incidents"],
+    summary="Upload iOS journal media metadata and sync to Convex journals",
+)
+async def upload_journal_media(
+    patient_id: str = Form(...),
+    journal_kind: str = Form(...),
+    note_text: str = Form(""),
+    created_at: str = Form(""),
+    journal_file: UploadFile = File(...),
+) -> dict:
+    ts = created_at or datetime.now(timezone.utc).isoformat()
+    content = {
+        "patient_id": patient_id,
+        "journal_kind": journal_kind,
+        "created_at": ts,
+        "note_text": note_text,
+        "file_name": journal_file.filename or "journal.bin",
+        "file_content_type": journal_file.content_type or "application/octet-stream",
+    }
+    await call_mutation(
+        "journals:add",
+        {
+            "patientId": patient_id,
+            "content": json.dumps(content, separators=(",", ":"), ensure_ascii=True),
+            "source": "ios",
+        },
+    )
+    return {
+        "status": "accepted",
+        "patient_id": patient_id,
+        "journal_kind": journal_kind,
+        "file_name": content["file_name"],
+    }
+
+
+@app.post(
+    "/api/incidents/metrics-json",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Incidents"],
+    summary="Ingest simple Gemma metrics JSON and create an incident report row",
+)
+async def ingest_metrics_json(payload: GemmaMetricsIncidentPayload) -> dict:
+    patient_id = payload.patient_id
+    created_at = payload.created_at or datetime.now(timezone.utc)
+    incident_id = str(uuid.uuid4())
+
+    anomaly = float(payload.metrics.get("anomalyScore", 0.0) or 0.0)
+    spectral_flux = float(payload.metrics.get("spectralFlux", 0.0) or 0.0)
+    zcr = float(payload.metrics.get("zcr", 0.0) or 0.0)
+    f0_hz = float(payload.metrics.get("f0Hz", 0.0) or 0.0)
+    rms_db = float(payload.metrics.get("rmsDb", -60.0) or -60.0)
+    centroid = float(payload.metrics.get("spectralCentroid", 0.0) or 0.0)
+
+    if anomaly >= 0.85:
+        severity = "critical"
+    elif anomaly >= 0.65:
+        severity = "high"
+    elif anomaly >= 0.4:
+        severity = "moderate"
+    else:
+        severity = "low"
+
+    await call_mutation(
+        "patients:upsert",
+        {
+            "patientId": patient_id,
+            "name": patient_id,
+            "initials": _initials(patient_id),
+            "dob": "1970-01-01",
+            "condition": "Gemma metrics stream",
+            "clinician": "Dr. T",
+            "accent": "teal",
+            "lastActivity": created_at.isoformat(),
+        },
+    )
+
+    incident_payload = {
+        "id": incident_id,
+        "patient_id": patient_id,
+        "patient_name": patient_id,
+        "patient_initials": _initials(patient_id),
+        "patient_accent": "teal",
+        "timestamp": created_at.isoformat(),
+        "trigger_type": "gemma_metrics_json_ingest",
+        "acoustic_variance": max(0.0, min(1.0, anomaly)),
+        "peak_db": max(0, min(100, int(round(rms_db + 100)))),
+        "user_statement": payload.description or "Gemma metrics JSON submitted from web app.",
+        "arkit_stress_index": max(0.0, min(1.0, anomaly)),
+        "arkit_dominant_expression": "not_available",
+        "on_device_action": "metrics_json_ingested",
+        "stabilized": anomaly < 0.6,
+        "severity": severity,
+        "status": "unreviewed",
+        "metrics": {
+            "anomalyScore": anomaly,
+            "spectralFlux": spectral_flux,
+            "zcr": zcr,
+            "f0Hz": f0_hz,
+            "rmsDb": rms_db,
+            "spectralCentroid": centroid,
+        },
+        "source": payload.source,
+    }
+    await call_mutation(
+        "emberIncidents:upsert",
+        {
+            "incidentId": incident_id,
+            "patientId": patient_id,
+            "payload": incident_payload,
+        },
+    )
+
+    await call_mutation(
+        "journals:add",
+        {
+            "patientId": patient_id,
+            "content": json.dumps(
+                {
+                    "type": "gemma_metrics_json",
+                    "source": payload.source,
+                    "description": payload.description,
+                    "metrics": payload.metrics,
+                    "created_at": created_at.isoformat(),
+                },
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ),
+            "source": "web",
+        },
+    )
+
+    return {
+        "status": "accepted",
+        "patient_id": patient_id,
+        "incident_id": incident_id,
+        "severity": severity,
     }
 
 

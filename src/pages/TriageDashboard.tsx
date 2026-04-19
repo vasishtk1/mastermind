@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity, AlertTriangle, Bell, Users } from "lucide-react";
-import type { IncidentReport, IncidentSeverity, IncidentStatus } from "@/lib/ember-types";
-import { generateIncomingIncident } from "@/lib/incident-mock";
+import { Activity, AlertTriangle, Users } from "lucide-react";
+import type { IncidentReport, IncidentStatus } from "@/lib/ember-types";
 import { useEmberData } from "@/context/EmberClinicalContext";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ember/StatusBadge";
-import { SectionHeader } from "@/components/ember/SectionHeader";
-import { Card } from "@/components/ember/Card";
 
 const ST_LABEL: Record<IncidentStatus, string> = {
   unreviewed: "New",
@@ -38,22 +35,7 @@ function timeAgo(iso: string) {
 
 export default function TriageDashboard() {
   const navigate = useNavigate();
-  const { patients, incidents, setIncidents } = useEmberData();
-  const [newIncidentIds, setNewIncidentIds] = useState<Set<string>>(new Set());
-  const [bannerPulse, setBannerPulse] = useState(false);
-  const pollSeqRef = useRef(0);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const patientPool = useMemo(
-    () =>
-      patients.map((p) => ({
-        id: p.id,
-        patient_name: p.name,
-        patient_initials: p.initials,
-        patient_accent: p.accent,
-      })),
-    [patients],
-  );
+  const { patients, incidents } = useEmberData();
 
   const sortedIncidents = useMemo(() => {
     const copy = [...incidents];
@@ -64,26 +46,6 @@ export default function TriageDashboard() {
     });
     return copy;
   }, [incidents]);
-
-  const pendingReview = incidents.filter((i) => i.status === "unreviewed").length;
-
-  const scheduleNextPoll = useCallback(() => {
-    pollTimerRef.current = setTimeout(() => {
-      const newInc = generateIncomingIncident(pollSeqRef.current++, patientPool);
-      setIncidents((prev) => [newInc, ...prev]);
-      setNewIncidentIds((ids) => new Set([...ids, newInc.id]));
-      setBannerPulse(true);
-      setTimeout(() => setBannerPulse(false), 5000);
-      scheduleNextPoll();
-    }, 45_000);
-  }, [patientPool, setIncidents]);
-
-  useEffect(() => {
-    scheduleNextPoll();
-    return () => {
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [scheduleNextPoll]);
 
   const openIncidentWorkspace = (i: IncidentReport) => {
     navigate(`/patients/${i.patient_id}/profile?incident=${encodeURIComponent(i.id)}`);
@@ -136,16 +98,10 @@ export default function TriageDashboard() {
                 onClick={() => openIncidentWorkspace(row)}
                 className={cn(
                   "w-full text-left grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] gap-4 px-2 py-4 hover:bg-muted/10 transition-colors group items-center min-h-[4.5rem] rounded-md",
-                  newIncidentIds.has(row.id) && "bg-primary/5",
                 )}
               >
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {newIncidentIds.has(row.id) && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-primary/50 text-primary font-medium">
-                        Just in
-                      </span>
-                    )}
                     <span className={cn("text-[11px] font-medium", ST_BADGE[row.status])}>{ST_LABEL[row.status]}</span>
                   </div>
                   <p className="text-sm font-medium text-foreground line-clamp-1">{row.trigger_type}</p>

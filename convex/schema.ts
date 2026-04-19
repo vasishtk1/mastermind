@@ -137,6 +137,8 @@ export default defineSchema({
     patientName: v.optional(v.string()),
     createdAt: v.number(),
     audio: audioBiometricsValue,
+    /** Optional full iOS DoctorPayload mirror for rich dashboard rendering. */
+    payload: v.optional(v.any()),
     /** Optional client build / schema version */
     payloadVersion: v.optional(v.string()),
   }).index("by_patient_time", ["patientId", "createdAt"]),

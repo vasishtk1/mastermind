@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useMutation } from "convex/react";
 import { Send, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "../../../convex/_generated/api";
 import type { DirectiveActivityType, DeployedDirective, IncidentReport } from "@/lib/ember-types";
 
 const ACTIVITY_TYPES: DirectiveActivityType[] = [
@@ -40,6 +42,7 @@ export function InsightDeploymentForm({ incident, onDeployed }: Props) {
   );
   const [loading, setLoading] = useState(false);
   const [deployed, setDeployed] = useState(false);
+  const deployDirective = useMutation(api.directives.deploy);
 
   const handleActivityChange = (type: DirectiveActivityType) => {
     setActivityType(type);
@@ -50,25 +53,19 @@ export function InsightDeploymentForm({ incident, onDeployed }: Props) {
     if (!instructions.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/patients/${incident.patient_id}/directives`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          incident_id: incident.id,
-          directive_type: activityType,
-          instructions: instructions.trim(),
-        }),
+      const result = await deployDirective({
+        incidentId: incident.id,
+        patientId: incident.patient_id,
+        directiveType: activityType,
+        instructions: instructions.trim(),
       });
 
-      if (!res.ok) throw new Error("Server error");
-
-      const data = await res.json();
       const directive: DeployedDirective = {
-        id: data.id,
+        id: result.directiveId,
         incident_id: incident.id,
         directive_type: activityType,
         instructions: instructions.trim(),
-        deployed_at: data.deployed_at ?? new Date().toISOString(),
+        deployed_at: new Date(result.deployedAt).toISOString(),
         acknowledged: false,
       };
 
@@ -77,9 +74,9 @@ export function InsightDeploymentForm({ incident, onDeployed }: Props) {
       toast.success("Directive deployed to device.", {
         description: `${activityType} — ${incident.patient_name}`,
       });
-    } catch {
+    } catch (err) {
       toast.error("Deployment failed.", {
-        description: "Check that the backend is running and try again.",
+        description: err instanceof Error ? err.message : "Could not write to Convex.",
       });
     } finally {
       setLoading(false);

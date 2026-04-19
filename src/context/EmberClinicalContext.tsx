@@ -9,48 +9,11 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { PATIENTS } from "@/lib/ember-mock";
-import { MOCK_INCIDENTS } from "@/lib/incident-mock";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import type { IncidentReport, Patient } from "@/lib/ember-types";
 
-const STORAGE_KEY = "ember-dashboard-extra-patients";
 const LAST_PROFILE_KEY = "ember-clinician-last-profile-patient";
-
-function isPatientShape(x: unknown): x is Patient {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  return (
-    typeof o.id === "string" &&
-    typeof o.name === "string" &&
-    typeof o.initials === "string" &&
-    typeof o.dob === "string" &&
-    typeof o.condition === "string" &&
-    typeof o.clinician === "string" &&
-    (o.accent === "teal" || o.accent === "violet" || o.accent === "coral")
-  );
-}
-
-function readExtraPatients(): Patient[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isPatientShape);
-  } catch {
-    return [];
-  }
-}
-
-function writeExtraPatients(patients: Patient[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-  } catch {
-    // ignore
-  }
-}
 
 function readLastProfilePatientId(): string | null {
   if (typeof window === "undefined") return null;
@@ -84,20 +47,35 @@ export type EmberClinicalContextValue = {
 const EmberClinicalContext = createContext<EmberClinicalContextValue | null>(null);
 
 export function EmberClinicalProvider({ children }: { children: ReactNode }) {
-  const [extraPatients, setExtraPatients] = useState<Patient[]>(() => readExtraPatients());
-  const [incidents, setIncidents] = useState<IncidentReport[]>(() => [...MOCK_INCIDENTS]);
+  const convexEnabled = Boolean(import.meta.env.VITE_CONVEX_URL);
+  const patientRows = useQuery(api.patients.list, convexEnabled ? {} : "skip");
+  const incidentRows = useQuery(api.emberIncidents.listRecent, convexEnabled ? { limit: 200 } : "skip");
+  const upsertPatient = useMutation(api.patients.upsert);
+
+  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [lastViewedPatientId, setLastViewedPatientIdState] = useState<string | null>(() => readLastProfilePatientId());
 
-  const patients = useMemo(() => {
-    const seen = new Set(PATIENTS.map((p) => p.id));
-    const merged = [...PATIENTS];
-    for (const p of extraPatients) {
-      if (seen.has(p.id)) continue;
-      seen.add(p.id);
-      merged.push(p);
-    }
-    return merged;
-  }, [extraPatients]);
+  const patients = useMemo<Patient[]>(() => {
+    if (!patientRows) return [];
+    return patientRows.map((row) => ({
+      id: row.patientId,
+      name: row.name,
+      initials: row.initials,
+      dob: row.dob,
+      condition: row.condition,
+      clinician: row.clinician,
+      accent: row.accent,
+      last_activity: row.lastActivity,
+    }));
+  }, [patientRows]);
+
+  useEffect(() => {
+    if (!incidentRows) return;
+    const mapped: IncidentReport[] = incidentRows
+      .map((row) => row.payload)
+      .filter((payload): payload is IncidentReport => isIncidentReportShape(payload));
+    setIncidents(mapped);
+  }, [incidentRows]);
 
   useEffect(() => {
     if (!lastViewedPatientId) return;
@@ -112,15 +90,17 @@ export function EmberClinicalProvider({ children }: { children: ReactNode }) {
   }, [patients, lastViewedPatientId]);
 
   const addPatient = useCallback((patient: Patient) => {
-    setExtraPatients((prev) => {
-      if (PATIENTS.some((p) => p.id === patient.id) || prev.some((p) => p.id === patient.id)) {
-        return prev;
-      }
-      const next = [...prev, patient];
-      writeExtraPatients(next);
-      return next;
+    void upsertPatient({
+      patientId: patient.id,
+      name: patient.name,
+      initials: patient.initials,
+      dob: patient.dob,
+      condition: patient.condition,
+      clinician: patient.clinician,
+      accent: patient.accent,
+      lastActivity: patient.last_activity,
     });
-  }, []);
+  }, [upsertPatient]);
 
   const setLastViewedPatientId = useCallback((id: string | null) => {
     setLastViewedPatientIdState(id);
@@ -163,6 +143,17 @@ export function EmberClinicalProvider({ children }: { children: ReactNode }) {
   );
 
   return <EmberClinicalContext.Provider value={value}>{children}</EmberClinicalContext.Provider>;
+}
+
+function isIncidentReportShape(x: unknown): x is IncidentReport {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.patient_id === "string" &&
+    typeof o.patient_name === "string" &&
+    typeof o.timestamp === "string"
+  );
 }
 
 export function useEmberData(): EmberClinicalContextValue {

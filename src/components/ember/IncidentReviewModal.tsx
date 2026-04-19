@@ -116,11 +116,12 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
   const [synthError, setSynthError] = useState<string | null>(null);
   const [deployOpen, setDeployOpen] = useState(false);
 
-  // Keep in sync if parent updates (e.g. already had synthesis)
+  // Keep in sync if parent updates (e.g. realtime Gemini Flash synthesis arrived,
+  // or directive was deployed). We compare on the full payload, not just id.
   useEffect(() => {
     setIncident(initialIncident);
     setDeployOpen(!!initialIncident.clinical_synthesis);
-  }, [initialIncident.id]);
+  }, [initialIncident]);
 
   const handleSynthesise = async () => {
     setSynthesising(true);

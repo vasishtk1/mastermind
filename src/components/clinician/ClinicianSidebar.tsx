@@ -52,6 +52,17 @@ export const ClinicianSidebar = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
+            <NavLink to="/gemma-json" className={({ isActive }) => navBtn(isActive)} aria-label="Gemma JSON ingest">
+              <FlaskConical className="w-5 h-5" />
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-sans text-xs">
+            Gemma JSON ingest
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
             <NavLink to="/benchmarking" className={({ isActive }) => navBtn(isActive)} aria-label="Benchmarking">
               <HeartPulse className="w-5 h-5" />
             </NavLink>

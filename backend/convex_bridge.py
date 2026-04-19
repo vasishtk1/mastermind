@@ -19,11 +19,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Set CONVEX_URL in backend/.env (copy from VITE_CONVEX_URL in the frontend).
-# Example: https://acoustic-minnow-665.convex.cloud
-_CONVEX_URL = os.getenv("CONVEX_URL", "").rstrip("/")
-
-
 async def call_mutation(path: str, args: Dict[str, Any]) -> None:
     """Fire-and-forget POST to a Convex mutation.
 
@@ -32,7 +27,9 @@ async def call_mutation(path: str, args: Dict[str, Any]) -> None:
               ``"clinicalPipeline:ingestEventWithReport"``.
         args: Dict of arguments matching the mutation's validator schema.
     """
-    if not _CONVEX_URL:
+    # Resolve lazily so env loaded by python-dotenv in main.py is visible.
+    convex_url = os.getenv("CONVEX_URL", "").rstrip("/")
+    if not convex_url:
         logger.warning(
             "[convex_bridge] CONVEX_URL not set — skipping Convex sync for '%s'. "
             "Add CONVEX_URL to backend/.env to enable real-time dashboard updates.",
@@ -40,7 +37,7 @@ async def call_mutation(path: str, args: Dict[str, Any]) -> None:
         )
         return
 
-    url = f"{_CONVEX_URL}/api/mutation"
+    url = f"{convex_url}/api/mutation"
     payload = {"path": path, "args": args}
 
     try:

@@ -10,6 +10,8 @@ export const ingest = mutation({
     biometrics: v.object({
       audio: audioBiometricsValue,
     }),
+    /** Optional complete iOS DoctorPayload JSON (context, facial, model, etc.). */
+    payload: v.optional(v.any()),
     payloadVersion: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -22,6 +24,7 @@ export const ingest = mutation({
       patientName: args.patientName,
       createdAt: Date.now(),
       audio: args.biometrics.audio,
+      payload: args.payload,
       payloadVersion: args.payloadVersion,
     });
   },

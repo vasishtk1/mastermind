@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { Line } from "react-chartjs-2";
 import {
@@ -16,7 +17,6 @@ import {
 import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap, ChevronRight } from "lucide-react";
 import { CountUp } from "@/components/ember/CountUp";
 
-import { PATIENTS, PROFILES } from "@/lib/ember-mock";
 import { useEmberData } from "@/context/EmberClinicalContext";
 import type { Patient } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
@@ -91,6 +91,12 @@ const DISPLAY_BLENDSHAPES = [
 const PatientMonitor = () => {
   const navigate = useNavigate();
   const { patients, lastViewedPatientId, setLastViewedPatientId } = useEmberData();
+  const upsertPatient = useMutation(
+    api.patients.upsert,
+  );
+  const recordBenchmark = useMutation(
+    api.benchmarks.record,
+  );
   const convexRoster = useQuery(
     api.patients.list,
     import.meta.env.VITE_CONVEX_URL ? {} : "skip",
@@ -121,7 +127,7 @@ const PatientMonitor = () => {
     if (lastViewedPatientId && mergedPatients.some((p) => p.id === lastViewedPatientId)) {
       return lastViewedPatientId;
     }
-    return mergedPatients[0]?.id ?? PATIENTS[0].id;
+    return mergedPatients[0]?.id ?? "";
   }, [lastViewedPatientId, mergedPatients]);
   
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
@@ -137,18 +143,28 @@ const PatientMonitor = () => {
 
   useEffect(() => {
     if (!mergedPatients.some((p) => p.id === selectedPatientId)) {
-      setSelectedPatientId(mergedPatients[0]?.id ?? PATIENTS[0].id);
+      setSelectedPatientId(mergedPatients[0]?.id ?? "");
     }
   }, [mergedPatients, selectedPatientId]);
 
   const patient = useMemo(
-    () => mergedPatients.find((p) => p.id === selectedPatientId) ?? mergedPatients[0] ?? PATIENTS[0],
+    () => mergedPatients.find((p) => p.id === selectedPatientId) ?? mergedPatients[0] ?? null,
     [mergedPatients, selectedPatientId],
   );
-  const profile =
-    PROFILES.find((p) => p.patient_id === patient.id && p.active) ??
-    PROFILES.find((p) => p.patient_id === patient.id) ??
-    PROFILES[0];
+  const profile = { name: "Baseline Envelope" };
+
+  if (!patient) {
+    return (
+      <div className="h-screen flex items-center justify-center p-8">
+        <div className="panel p-6 max-w-md text-center space-y-2">
+          <h2 className="text-lg font-semibold">No patients enrolled</h2>
+          <p className="text-sm text-muted-foreground">
+            Add a patient in the roster to start live monitoring.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // --------------------------------------------------------------------------
   // Live telemetry (real sensors)
@@ -400,6 +416,50 @@ const PatientMonitor = () => {
     return telemetryToMasterMindAudio(stats, uptime, curDb);
   }, [audioHasSignal, stats, uptime, curDb]);
 
+  const [savingBenchmark, setSavingBenchmark] = useState(false);
+
+  const saveBenchmarking = async () => {
+    if (!patient) return;
+    if (!audioHasSignal) {
+      toast.error("Start the mic first", {
+        description: "We need live signal to store a benchmark snapshot.",
+      });
+      return;
+    }
+    setSavingBenchmark(true);
+    try {
+      await upsertPatient({
+        patientId: patient.id,
+        name: patient.name,
+        initials: patient.initials,
+        dob: patient.dob,
+        condition: patient.condition,
+        clinician: patient.clinician,
+        accent: patient.accent,
+        lastActivity: new Date().toISOString(),
+      });
+      await recordBenchmark({
+        patientId: patient.id,
+        patientName: patient.name,
+        metrics: benchmarkMetrics,
+        sessionSeconds: uptime,
+        geminiReasoning: lastGemini ?? undefined,
+        notes: undefined,
+        mastermindAudioSnapshot: mastermindAudioSnapshot ?? undefined,
+      });
+      toast.success("Benchmark saved to Convex", {
+        description: `${patient.name} is now available in the benchmarking tab.`,
+      });
+      navigate(`/patients/${patient.id}/profile`);
+    } catch (error) {
+      toast.error("Could not save benchmark", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setSavingBenchmark(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col overflow-y-auto overflow-x-hidden">
       {triggered && (
@@ -558,10 +618,11 @@ const PatientMonitor = () => {
 
       <div className="px-8 pb-6 pt-4 shrink-0 flex justify-end border-t border-border mt-2">
         <button
-          onClick={() => navigate(`/patients/${patient.id}/profile`)}
+          onClick={() => void saveBenchmarking()}
+          disabled={savingBenchmark}
           className="bg-primary text-primary-foreground hover:bg-primary-glow rounded-md px-8 py-3 text-sm font-bold flex items-center gap-2 glow-teal transition-all shadow-md"
         >
-          Save Benchmarking <ChevronRight className="w-4 h-4" />
+          {savingBenchmark ? "Saving..." : "Save Benchmarking"} <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 

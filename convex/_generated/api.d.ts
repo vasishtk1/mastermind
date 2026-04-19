@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as audioValidators from "../audioValidators.js";
 import type * as benchmarks from "../benchmarks.js";
 import type * as clinicalPipeline from "../clinicalPipeline.js";
@@ -15,6 +16,7 @@ import type * as compare from "../compare.js";
 import type * as directives from "../directives.js";
 import type * as emberIncidents from "../emberIncidents.js";
 import type * as evals from "../evals.js";
+import type * as iosIngest from "../iosIngest.js";
 import type * as journals from "../journals.js";
 import type * as mastermindIncidents from "../mastermindIncidents.js";
 import type * as patients from "../patients.js";
@@ -29,6 +31,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   audioValidators: typeof audioValidators;
   benchmarks: typeof benchmarks;
   clinicalPipeline: typeof clinicalPipeline;
@@ -36,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   directives: typeof directives;
   emberIncidents: typeof emberIncidents;
   evals: typeof evals;
+  iosIngest: typeof iosIngest;
   journals: typeof journals;
   mastermindIncidents: typeof mastermindIncidents;
   patients: typeof patients;

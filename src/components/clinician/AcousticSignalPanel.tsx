@@ -1,4 +1,4 @@
-import { Activity, Crosshair, TrendingUp, Waves, Wind, Zap } from "lucide-react";
+import { Activity, Crosshair, Frown, ScanFace, Smile, TrendingUp, Waves, Wind, Zap } from "lucide-react";
 import type { RadarMetrics } from "@/lib/ember-types";
 import { FEATURE_EXPLAINERS } from "@/lib/ember-mock";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,37 @@ const ICONS: Record<string, typeof Waves> = {
   Wind,
   Crosshair,
   Zap,
+  ScanFace,
+  Frown,
+  Smile,
 };
+
+const FACIAL_FEATURES = [
+  {
+    key: "facial_stress",
+    name: "Facial Stress (ARKit)",
+    iconKey: "ScanFace",
+    desc: "5-second composite of ARKit facial action units indicating overall affective tension.",
+    safe: 25,
+    danger: 75,
+  },
+  {
+    key: "brow_furrow",
+    name: "Brow Furrow",
+    iconKey: "Frown",
+    desc: "Magnitude of inner-brow lift + brow-down pull; classic distress indicator.",
+    safe: 22,
+    danger: 70,
+  },
+  {
+    key: "jaw_tightness",
+    name: "Jaw Tightness",
+    iconKey: "Smile",
+    desc: "Sustained masseter / jaw clench composite from ARKit jaw blendshapes.",
+    safe: 20,
+    danger: 72,
+  },
+] as const;
 
 const RADAR_KEYS: Array<keyof RadarMetrics> = [
   "spectral_flux",
@@ -184,25 +214,79 @@ export function SignalMetricCard({
   );
 }
 
-export function AcousticSignalPanel({ safeRadar, dangerRadar }: { safeRadar: RadarMetrics; dangerRadar: RadarMetrics }) {
+export function AcousticSignalPanel({
+  safeRadar,
+  dangerRadar,
+  facialStress,
+  browFurrow,
+  jawTightness,
+}: {
+  safeRadar: RadarMetrics;
+  dangerRadar: RadarMetrics;
+  /** ARKit facial stress composite (0-1). When omitted, defaults to the
+   *  hardcoded danger threshold so the card still renders meaningfully. */
+  facialStress?: number;
+  browFurrow?: number;
+  jawTightness?: number;
+}) {
   const safeArr = toRadarArray(safeRadar);
   const dangerArr = toRadarArray(dangerRadar);
+  const facialLive = (key: string): number => {
+    if (key === "facial_stress" && typeof facialStress === "number") return facialStress * 100;
+    if (key === "brow_furrow") {
+      if (typeof browFurrow === "number") return browFurrow * 100;
+      if (typeof facialStress === "number") return Math.min(100, facialStress * 95);
+    }
+    if (key === "jaw_tightness") {
+      if (typeof jawTightness === "number") return jawTightness * 100;
+      if (typeof facialStress === "number") return Math.min(100, facialStress * 105);
+    }
+    return NaN;
+  };
+
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-border bg-card/40 p-4 md:p-5" style={{ minHeight: 360 }}>
         <AcousticThresholdRadar safeValues={safeArr} dangerValues={dangerArr} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {FEATURE_EXPLAINERS.map((f, idx) => (
-          <SignalMetricCard
-            key={f.key}
-            iconKey={f.icon}
-            name={f.name}
-            description={f.desc}
-            safeValue={safeArr[idx]}
-            dangerValue={dangerArr[idx]}
-          />
-        ))}
+
+      <div>
+        <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground mb-2">
+          Vocal Biometrics
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {FEATURE_EXPLAINERS.map((f, idx) => (
+            <SignalMetricCard
+              key={f.key}
+              iconKey={f.icon}
+              name={f.name}
+              description={f.desc}
+              safeValue={safeArr[idx]}
+              dangerValue={dangerArr[idx]}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground mb-2">
+          Facial Biometrics (ARKit)
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {FACIAL_FEATURES.map((f) => {
+            const live = facialLive(f.key);
+            return (
+              <SignalMetricCard
+                key={f.key}
+                iconKey={f.iconKey}
+                name={f.name}
+                description={f.desc}
+                safeValue={f.safe}
+                dangerValue={Number.isFinite(live) ? live : f.danger}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

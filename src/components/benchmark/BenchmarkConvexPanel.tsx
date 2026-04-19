@@ -16,6 +16,33 @@ type Metrics = {
   spectralCentroid: number;
 };
 
+type DoctorPayload = {
+  journal_kind?: string;
+  text?: string;
+  gemma_action?: string;
+  model?: {
+    gemma_success?: boolean;
+    gemma_total_time_ms?: number;
+  };
+  facial_data?: {
+    facial_stress_score?: number;
+    brow_furrow_score?: number;
+    jaw_tightness_score?: number;
+  };
+  context?: {
+    session_id?: string;
+    tripwire_score?: number;
+    realtime_vad_score?: number;
+    realtime_chunks_seen?: number;
+    realtime_events_uploaded?: number;
+  };
+};
+
+function asDoctorPayload(value: unknown): DoctorPayload | null {
+  if (!value || typeof value !== "object") return null;
+  return value as DoctorPayload;
+}
+
 interface Props {
   patientId: string;
   patientName: string;
@@ -219,6 +246,40 @@ export function BenchmarkConvexPanel({
                       F0 {row.audio.fundamental_frequency_hz.toFixed(1)} Hz · rms {row.audio.rms.toFixed(3)} ·{" "}
                       {row.audio.duration_sec.toFixed(2)}s
                     </div>
+                    {(() => {
+                      const payload = asDoctorPayload((row as { payload?: unknown }).payload);
+                      if (!payload) return null;
+                      return (
+                        <>
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            kind {payload.journal_kind ?? "n/a"} · gemma{" "}
+                            {payload.model?.gemma_success == null
+                              ? "n/a"
+                              : payload.model.gemma_success
+                                ? "success"
+                                : "failed"}
+                            {payload.model?.gemma_total_time_ms != null
+                              ? ` · ${Math.round(payload.model.gemma_total_time_ms)}ms`
+                              : ""}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            facial stress {payload.facial_data?.facial_stress_score?.toFixed(3) ?? "n/a"} · brow{" "}
+                            {payload.facial_data?.brow_furrow_score?.toFixed(3) ?? "n/a"} · jaw{" "}
+                            {payload.facial_data?.jaw_tightness_score?.toFixed(3) ?? "n/a"}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            session {payload.context?.session_id ?? "n/a"} · tripwire{" "}
+                            {payload.context?.tripwire_score?.toFixed(3) ?? "n/a"} · vad{" "}
+                            {payload.context?.realtime_vad_score?.toFixed(3) ?? "n/a"}
+                          </div>
+                          {payload.text ? (
+                            <p className="text-[10px] text-foreground/90 leading-snug mt-1 line-clamp-2">
+                              note: {payload.text}
+                            </p>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                   </div>
                 </li>
               ))}

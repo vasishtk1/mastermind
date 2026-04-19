@@ -9,6 +9,7 @@ import TriageDashboard from "./pages/TriageDashboard.tsx";
 import PatientMonitor from "./pages/PatientMonitor.tsx";
 import PatientProfiles from "./pages/PatientProfiles.tsx";
 import PatientDashboard from "./pages/PatientDashboard.tsx";
+import GemmaJSONIngest from "./pages/GemmaJSONIngest.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/patients/:patientId/profile" element={<PatientDashboard />} />
             <Route path="/patients/:patientId/dashboard" element={<PatientDashboard />} />
             <Route path="/benchmarking" element={<PatientMonitor />} />
+            <Route path="/gemma-json" element={<GemmaJSONIngest />} />
             <Route path="/sentinel" element={<Navigate to="/benchmarking" replace />} />
             <Route path="/auditing" element={<Navigate to="/dashboard" replace />} />
             <Route path="/audit" element={<Navigate to="/auditing" replace />} />
