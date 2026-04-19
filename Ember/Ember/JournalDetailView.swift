@@ -45,11 +45,14 @@ struct JournalDetailView: View {
 
                     EmberCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Gemma grounding action")
+                            Text("Gemma 4 status")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(EmberTheme.textSecondary)
-                            Text(session.gemmaAction)
+                            Text((session.gemmaSuccess ?? false) ? "Gemma 4 was able to function successfully." : "Gemma 4 was not able to function for this session.")
                                 .foregroundStyle(EmberTheme.textPrimary)
+                            Text("Grounding activity: \(session.gemmaAction)")
+                                .font(.footnote)
+                                .foregroundStyle(EmberTheme.textSecondary)
                             Text(String(format: "Inference latency: %.0f ms", session.gemmaLatencyMs))
                                 .font(.caption)
                                 .foregroundStyle(EmberTheme.textSecondary)

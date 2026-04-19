@@ -16,6 +16,7 @@ struct JournalSession: Codable, Identifiable, Sendable {
     var browFurrowScore: Double
     var jawTightnessScore: Double
     var gemmaAction: String
+    var gemmaResponse: String
     var gemmaSuccess: Bool?
     var gemmaLatencyMs: Double
     var biometricsSent: Bool
@@ -32,6 +33,7 @@ struct JournalSession: Codable, Identifiable, Sendable {
         browFurrowScore: Double,
         jawTightnessScore: Double,
         gemmaAction: String,
+        gemmaResponse: String,
         gemmaSuccess: Bool?,
         gemmaLatencyMs: Double,
         biometricsSent: Bool,
@@ -47,6 +49,7 @@ struct JournalSession: Codable, Identifiable, Sendable {
         self.browFurrowScore = browFurrowScore
         self.jawTightnessScore = jawTightnessScore
         self.gemmaAction = gemmaAction
+        self.gemmaResponse = gemmaResponse
         self.gemmaSuccess = gemmaSuccess
         self.gemmaLatencyMs = gemmaLatencyMs
         self.biometricsSent = biometricsSent
@@ -64,6 +67,7 @@ struct JournalSession: Codable, Identifiable, Sendable {
         case browFurrowScore
         case jawTightnessScore
         case gemmaAction
+        case gemmaResponse
         case gemmaSuccess
         case gemmaLatencyMs
         case biometricsSent
@@ -82,6 +86,7 @@ struct JournalSession: Codable, Identifiable, Sendable {
         browFurrowScore = try c.decode(Double.self, forKey: .browFurrowScore)
         jawTightnessScore = try c.decode(Double.self, forKey: .jawTightnessScore)
         gemmaAction = try c.decode(String.self, forKey: .gemmaAction)
+        gemmaResponse = try c.decodeIfPresent(String.self, forKey: .gemmaResponse) ?? gemmaAction
         gemmaSuccess = try c.decodeIfPresent(Bool.self, forKey: .gemmaSuccess)
         gemmaLatencyMs = try c.decode(Double.self, forKey: .gemmaLatencyMs)
         biometricsSent = try c.decodeIfPresent(Bool.self, forKey: .biometricsSent) ?? false

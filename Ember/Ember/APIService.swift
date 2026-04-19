@@ -47,18 +47,46 @@ final class APIService: ObservableObject {
         }
     }
 
-    func uploadIncident(text: String, facialData: [String: Double], gemmaAction: String) async throws {
+    func uploadIncident(
+        text: String,
+        facialData: [String: Double],
+        gemmaAction: String,
+        audioMetrics: AudioMetrics? = nil,
+        journalKind: JournalEntryKind? = nil,
+        gemmaSuccess: Bool? = nil,
+        gemmaLatencyMs: Double? = nil,
+        telemetrySnapshot: TelemetryBatchPayload? = nil,
+        extraContext: [String: Any]? = nil
+    ) async throws {
         let url = baseURL.appendingPathComponent("api/incidents")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let biometrics: [String: Any] = [
+            "facial": facialData,
+            "audio": audioMetrics.map(audioMetricsDictionary) ?? NSNull(),
+            "telemetry_snapshot": telemetrySnapshot.flatMap(encodableAsJSONObject) ?? NSNull(),
+        ]
+        var model: [String: Any] = ["gemma_action": gemmaAction]
+        if let gemmaSuccess { model["gemma_success"] = gemmaSuccess }
+        if let gemmaLatencyMs { model["gemma_total_time_ms"] = gemmaLatencyMs }
+
         let body: [String: Any] = [
             "text": text,
+            "journal_kind": journalKind?.rawValue ?? NSNull(),
+            "biometrics": biometrics,
+            "model": model,
+            "context": extraContext ?? NSNull(),
             "facial_data": facialData,
             "gemma_action": gemmaAction,
             "created_at": ISO8601DateFormatter().string(from: Date()),
         ]
+        if let payload = try? JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys]),
+           let payloadText = String(data: payload, encoding: .utf8) {
+            print("[MasterMind][DoctorPayload][Incident]\n\(payloadText)")
+            NSLog("[MasterMind][DoctorPayload][Incident] %@", payloadText)
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
         let (_, response) = try await session.data(for: request)
@@ -118,6 +146,33 @@ final class APIService: ObservableObject {
                 userInfo: [NSLocalizedDescriptionKey: "POST /api/journals/upload failed"]
             )
         }
+    }
+
+    private func audioMetricsDictionary(_ metrics: AudioMetrics) -> [String: Any] {
+        [
+            "sample_rate_hz": metrics.sampleRateHz,
+            "duration_sec": metrics.durationSec,
+            "fundamental_frequency_hz": metrics.fundamentalFrequencyHz,
+            "jitter_approx": metrics.jitterApprox,
+            "shimmer_approx": metrics.shimmerApprox,
+            "rms": metrics.rms,
+            "spectral_flux": metrics.spectralFlux,
+            "mfcc_deviation": metrics.mfccDeviation,
+            "mfcc_1_to_13": metrics.mfcc1to13,
+            "pitch_escalation": metrics.pitchEscalation,
+            "breath_rate": metrics.breathRate,
+            "spectral_centroid": metrics.spectralCentroid,
+            "spectral_rolloff": metrics.spectralRolloff,
+            "zcr_density": metrics.zcrDensity,
+        ]
+    }
+
+    private func encodableAsJSONObject<T: Encodable>(_ value: T) -> [String: Any]? {
+        guard let data = try? encoder.encode(value),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return obj
     }
 
     // MARK: - Pull
