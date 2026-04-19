@@ -63,7 +63,7 @@ struct MasterMindSettingsView: View {
 
                     Section("Preferences") {
                         NavigationLink("Reminder preferences") {
-                            ReminderPreferencesView(vm: vm)
+                            ReminderPreferencesView(env: env)
                         }
                     }
                 }
@@ -118,16 +118,74 @@ struct EditPatientProfileView: View {
 }
 
 struct ReminderPreferencesView: View {
-    @ObservedObject var vm: MasterMindProfileViewModel
+    @ObservedObject var env: AppEnvironment
+
+    @State private var remindersEnabled: Bool = true
+    @State private var cadence: ReminderCadence = .daily
+    @State private var reminderTime: Date = Date()
+    @State private var weekday: Int = 2 // Monday
 
     var body: some View {
         Form {
             Section("Journal reminders") {
-                Toggle("Daily reminder", isOn: $vm.prefersDailyReminder)
-                DatePicker("Preferred time", selection: $vm.preferredReminderTime, displayedComponents: .hourAndMinute)
-                    .disabled(!vm.prefersDailyReminder)
+                Toggle("Enable reminders", isOn: $remindersEnabled)
+
+                Picker("Frequency", selection: $cadence) {
+                    Text("Hourly").tag(ReminderCadence.hourly)
+                    Text("Daily").tag(ReminderCadence.daily)
+                    Text("Weekly").tag(ReminderCadence.weekly)
+                }
+                .disabled(!remindersEnabled)
+
+                if cadence != .hourly {
+                    DatePicker("Preferred time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                        .disabled(!remindersEnabled)
+                }
+
+                if cadence == .weekly {
+                    Picker("Day of week", selection: $weekday) {
+                        ForEach(1...7, id: \.self) { index in
+                            Text(weekdayLabel(index)).tag(index)
+                        }
+                    }
+                    .disabled(!remindersEnabled)
+                }
             }
         }
         .navigationTitle("Reminder Preferences")
+        .onAppear {
+            remindersEnabled = env.remindersEnabled
+            cadence = env.reminderCadence
+            weekday = env.reminderWeekday
+            reminderTime = dateFrom(hour: env.reminderHour, minute: env.reminderMinute)
+        }
+        .onChange(of: remindersEnabled) { _, _ in persist() }
+        .onChange(of: cadence) { _, _ in persist() }
+        .onChange(of: reminderTime) { _, _ in persist() }
+        .onChange(of: weekday) { _, _ in persist() }
+    }
+
+    private func persist() {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
+        env.applyReminderPreferences(
+            enabled: remindersEnabled,
+            cadence: cadence,
+            hour: comps.hour ?? 9,
+            minute: comps.minute ?? 0,
+            weekday: weekday
+        )
+    }
+
+    private func dateFrom(hour: Int, minute: Int) -> Date {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = hour
+        comps.minute = minute
+        return Calendar.current.date(from: comps) ?? Date()
+    }
+
+    private func weekdayLabel(_ index: Int) -> String {
+        let symbols = Calendar.current.weekdaySymbols
+        let i = max(1, min(7, index)) - 1
+        return symbols[i]
     }
 }

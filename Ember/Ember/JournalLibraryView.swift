@@ -5,8 +5,7 @@ struct JournalLibraryView: View {
     @ObservedObject var store: JournalStore
 
     @State private var showDoctorDataNotice = false
-    @State private var showVideoCapture = false
-    @State private var showVoiceCapture = false
+    @State private var activeCaptureKind: JournalEntryKind?
 
     var body: some View {
         NavigationStack {
@@ -72,12 +71,12 @@ struct JournalLibraryView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            showVideoCapture = true
+                            activeCaptureKind = .video
                         } label: {
                             Label("New Video Journal", systemImage: "video.fill")
                         }
                         Button {
-                            showVoiceCapture = true
+                            activeCaptureKind = .voice
                         } label: {
                             Label("New Voice Journal", systemImage: "waveform.mic")
                         }
@@ -93,14 +92,10 @@ struct JournalLibraryView: View {
             } message: {
                 Text("This removed only your local copy. Data already sent to your doctor remains in the clinician system.")
             }
-            .sheet(isPresented: $showVideoCapture) {
+            .sheet(item: $activeCaptureKind) { kind in
                 NavigationStack {
-                    JournalCaptureView(env: env, store: store, initialKind: .video, lockKindSelection: true)
-                }
-            }
-            .sheet(isPresented: $showVoiceCapture) {
-                NavigationStack {
-                    JournalCaptureView(env: env, store: store, initialKind: .voice, lockKindSelection: true)
+                    JournalCaptureView(env: env, store: store, initialKind: kind, lockKindSelection: true)
+                        .id(kind.rawValue)
                 }
             }
         }

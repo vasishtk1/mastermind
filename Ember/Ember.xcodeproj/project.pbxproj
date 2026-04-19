@@ -46,6 +46,7 @@
 		D1200000000000000000001A /* JournalLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001A /* JournalLibraryView.swift */; };
 		D1200000000000000000001B /* MasterMindSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001B /* MasterMindSettingsView.swift */; };
 		D1200000000000000000001C /* MasterMindOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001C /* MasterMindOnboardingView.swift */; };
+		E12000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E11000000000000000000001 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,6 +92,7 @@
 		D1100000000000000000001A /* JournalLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalLibraryView.swift; sourceTree = "<group>"; };
 		D1100000000000000000001B /* MasterMindSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindSettingsView.swift; sourceTree = "<group>"; };
 		D1100000000000000000001C /* MasterMindOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindOnboardingView.swift; sourceTree = "<group>"; };
+		E11000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +122,7 @@
 			children = (
 				A40000000000000000000002 /* Ember */,
 				A40000000000000000000003 /* Products */,
+				E11000000000000000000001 /* Assets.xcassets */,
 				A20000000000000000000009 /* Info.plist */,
 				A2000000000000000000000A /* Ember-Bridging-Header.h */,
 				92C3DFE72F94694000624728 /* Frameworks */,
@@ -237,6 +240,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E12000000000000000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -350,6 +354,7 @@
 		A70000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -411,6 +416,7 @@
 		A70000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
 				CODE_SIGN_STYLE = Automatic;

@@ -15,6 +15,7 @@ final class AudioTripwireManager {
 
     var threshold: Double = 0.82
     var cooldownSec: TimeInterval = 120
+    var emitsLocalNotifications = false
     var onScoreUpdate: (@Sendable (Double) -> Void)?
 
     func start() async throws {
@@ -70,6 +71,7 @@ final class AudioTripwireManager {
             self.latestAnomalyScore = score
             self.onScoreUpdate?(score)
             guard score >= self.threshold else { return }
+            guard self.emitsLocalNotifications else { return }
             self.maybeSendEscalationNotification()
         }
         self.timer = timer

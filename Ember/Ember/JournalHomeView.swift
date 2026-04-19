@@ -4,6 +4,7 @@ struct JournalHomeView: View {
     @ObservedObject var env: AppEnvironment
     @ObservedObject var store: JournalStore
     @State private var showDoctorDataNotice = false
+    @State private var activeCaptureKind: JournalEntryKind?
 
     var body: some View {
         NavigationStack {
@@ -63,6 +64,12 @@ struct JournalHomeView: View {
             } message: {
                 Text("This removed only your local copy. Data already sent to your doctor remains in the clinician system.")
             }
+            .sheet(item: $activeCaptureKind) { kind in
+                NavigationStack {
+                    JournalCaptureView(env: env, store: store, initialKind: kind, lockKindSelection: true)
+                        .id(kind.rawValue)
+                }
+            }
         }
     }
 
@@ -89,16 +96,18 @@ struct JournalHomeView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(EmberTheme.textSecondary)
                 HStack(spacing: 10) {
-                    NavigationLink {
-                        JournalCaptureView(env: env, store: store, initialKind: .video, lockKindSelection: true)
+                    Button {
+                        activeCaptureKind = .video
                     } label: {
                         actionPill(title: "Video Journal", systemName: "video.fill")
                     }
-                    NavigationLink {
-                        JournalCaptureView(env: env, store: store, initialKind: .voice, lockKindSelection: true)
+                    .buttonStyle(.plain)
+                    Button {
+                        activeCaptureKind = .voice
                     } label: {
                         actionPill(title: "Voice Journal", systemName: "waveform.mic")
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }

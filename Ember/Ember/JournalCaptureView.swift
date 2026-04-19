@@ -189,6 +189,11 @@ struct JournalCaptureView: View {
                 isVoiceRecording = false
             }
         }
+        .onAppear {
+            if lockKindSelection {
+                selectedKind = initialKind
+            }
+        }
     }
 
     @MainActor

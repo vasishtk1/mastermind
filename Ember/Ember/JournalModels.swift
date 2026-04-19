@@ -1,8 +1,10 @@
 import Foundation
 
-enum JournalEntryKind: String, Codable, CaseIterable, Sendable {
+enum JournalEntryKind: String, Codable, CaseIterable, Sendable, Identifiable {
     case video
     case voice
+
+    var id: String { rawValue }
 }
 
 struct JournalSession: Codable, Identifiable, Sendable {
