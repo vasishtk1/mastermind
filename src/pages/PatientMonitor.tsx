@@ -88,7 +88,7 @@ const DISPLAY_BLENDSHAPES = [
 ] as const;
 
 const PatientMonitor = () => {
-  const { patients } = useEmberData();
+  const { patients, lastViewedPatientId, setLastViewedPatientId } = useEmberData();
   const convexRoster = useQuery(
     api.patients.list,
     import.meta.env.VITE_CONVEX_URL ? {} : "skip",
@@ -115,8 +115,23 @@ const PatientMonitor = () => {
     return [...base, ...extra];
   }, [patients, convexRoster]);
 
-  const [selectedPatientId, setSelectedPatientId] = useState(() => patients[0]?.id ?? PATIENTS[0].id);
+  const initialPatientId = useMemo(() => {
+    if (lastViewedPatientId && mergedPatients.some((p) => p.id === lastViewedPatientId)) {
+      return lastViewedPatientId;
+    }
+    return mergedPatients[0]?.id ?? PATIENTS[0].id;
+  }, [lastViewedPatientId, mergedPatients]);
+  
+  const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
   const [lastGemini, setLastGemini] = useState<string | null>(null);
+
+  // Sync back to global state when local selection changes
+  useEffect(() => {
+    if (selectedPatientId !== lastViewedPatientId) {
+      setLastViewedPatientId(selectedPatientId);
+    }
+  }, [selectedPatientId, lastViewedPatientId, setLastViewedPatientId]);
+
 
   useEffect(() => {
     if (!mergedPatients.some((p) => p.id === selectedPatientId)) {

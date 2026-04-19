@@ -273,7 +273,7 @@ const fmtTime = (iso: string) => {
 };
 
 const PatientProfiles = () => {
-  const { patients, addPatient } = useEmberData();
+  const { patients, addPatient, setLastViewedPatientId } = useEmberData();
   const [addPatientOpen, setAddPatientOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId ? patients.find((p) => p.id === openId) ?? null : null;
@@ -332,7 +332,10 @@ const PatientProfiles = () => {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setOpenId(p.id)}
+                  onClick={() => {
+                    setOpenId(p.id);
+                    setLastViewedPatientId(p.id);
+                  }}
                   className="bg-surface-elevated border border-border hover:border-primary/60 rounded-md px-4 py-2 text-sm transition-colors"
                 >
                   Summary

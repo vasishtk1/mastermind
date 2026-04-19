@@ -4,11 +4,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClinicianLayout } from "@/components/clinician/ClinicianLayout";
-import ResearcherIDE from "./pages/ResearcherIDE.tsx";
+
 import TriageDashboard from "./pages/TriageDashboard.tsx";
 import PatientMonitor from "./pages/PatientMonitor.tsx";
 import PatientProfiles from "./pages/PatientProfiles.tsx";
-import PatientNeuroscienceProfile from "./pages/PatientNeuroscienceProfile.tsx";
+import PatientDashboard from "./pages/PatientDashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -24,11 +24,11 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<TriageDashboard />} />
             <Route path="/patients" element={<PatientProfiles />} />
-            <Route path="/patients/:patientId/profile" element={<PatientNeuroscienceProfile />} />
+            <Route path="/patients/:patientId/profile" element={<PatientDashboard />} />
+            <Route path="/patients/:patientId/dashboard" element={<PatientDashboard />} />
             <Route path="/benchmarking" element={<PatientMonitor />} />
             <Route path="/sentinel" element={<Navigate to="/benchmarking" replace />} />
-            <Route path="/auditing" element={<Navigate to="/research?tab=eval" replace />} />
-            <Route path="/research" element={<ResearcherIDE />} />
+            <Route path="/auditing" element={<Navigate to="/dashboard" replace />} />
             <Route path="/audit" element={<Navigate to="/auditing" replace />} />
           </Route>
           <Route path="*" element={<NotFound />} />

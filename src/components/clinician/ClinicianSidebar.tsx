@@ -57,20 +57,10 @@ export const ClinicianSidebar = () => {
             </NavLink>
           </TooltipTrigger>
           <TooltipContent side="right" className="font-sans text-xs">
-            Benchmarking
+            Live Benchmarking
           </TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <NavLink to="/research" className={() => navBtn(labActive)} aria-label="Ember Research Lab">
-              <FlaskConical className="w-5 h-5" />
-            </NavLink>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-sans text-xs max-w-[15rem]">
-            Ember Research Lab — neuroscience design + RAG evaluation &amp; safety (same workspace)
-          </TooltipContent>
-        </Tooltip>
       </TooltipProvider>
 
       <div className="mt-auto mono text-[9px] text-muted-foreground/60 tracking-widest [writing-mode:vertical-rl]">

@@ -12,6 +12,7 @@ import type * as audioValidators from "../audioValidators.js";
 import type * as benchmarks from "../benchmarks.js";
 import type * as clinicalPipeline from "../clinicalPipeline.js";
 import type * as compare from "../compare.js";
+import type * as deviceEvents from "../deviceEvents.js";
 import type * as directives from "../directives.js";
 import type * as emberIncidents from "../emberIncidents.js";
 import type * as evals from "../evals.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   benchmarks: typeof benchmarks;
   clinicalPipeline: typeof clinicalPipeline;
   compare: typeof compare;
+  deviceEvents: typeof deviceEvents;
   directives: typeof directives;
   emberIncidents: typeof emberIncidents;
   evals: typeof evals;
