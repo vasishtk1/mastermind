@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		92C3DFE92F94694000624728 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 92C3DFE82F94694000624728 /* CoreML.framework */; };
+		92C3DFEB2F94695F00624728 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 92C3DFEA2F94695F00624728 /* Accelerate.framework */; };
 		A10000000000000000000001 /* EmberApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* EmberApp.swift */; };
 		A10000000000000000000002 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* DashboardView.swift */; };
 		A10000000000000000000003 /* CactusManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* CactusManager.swift */; };
@@ -15,9 +17,25 @@
 		A10000000000000000000006 /* ProfileSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* ProfileSyncCoordinator.swift */; };
 		A10000000000000000000007 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* AppEnvironment.swift */; };
 		A10000000000000000000008 /* MemoryFootprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* MemoryFootprint.swift */; };
+		B12000000000000000000001 /* EmberTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11000000000000000000001 /* EmberTheme.swift */; };
+		D12000000000000000000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000001 /* MainTabView.swift */; };
+		D12000000000000000000002 /* LiveAudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000002 /* LiveAudioView.swift */; };
+		D12000000000000000000003 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000003 /* AudioCaptureService.swift */; };
+		D12000000000000000000004 /* RealtimeAudioStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000004 /* RealtimeAudioStreamService.swift */; };
+		D12000000000000000000005 /* AudioFeatureExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000005 /* AudioFeatureExtractor.swift */; };
+		D12000000000000000000006 /* TelemetryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000006 /* TelemetryModels.swift */; };
+		D12000000000000000000007 /* TelemetryBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000007 /* TelemetryBuffer.swift */; };
+		D12000000000000000000008 /* FacialTelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000008 /* FacialTelemetryManager.swift */; };
+		D12000000000000000000009 /* MotionTelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000009 /* MotionTelemetryManager.swift */; };
+		D1200000000000000000000A /* AudioTelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000A /* AudioTelemetryManager.swift */; };
+		D1200000000000000000000B /* SensoryEnvironmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000B /* SensoryEnvironmentManager.swift */; };
+		D1200000000000000000000C /* TouchTelemetryCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000C /* TouchTelemetryCaptureView.swift */; };
+		D1200000000000000000000D /* TelemetryOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000D /* TelemetryOrchestrator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		92C3DFE82F94694000624728 /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreML.framework; path = System/Library/Frameworks/CoreML.framework; sourceTree = SDKROOT; };
+		92C3DFEA2F94695F00624728 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 		A20000000000000000000001 /* EmberApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* CactusManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CactusManager.swift; sourceTree = "<group>"; };
@@ -29,6 +47,20 @@
 		A20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000000000000000000000A /* Ember-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Ember-Bridging-Header.h"; sourceTree = "<group>"; };
 		A2000000000000000000000B /* Ember.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ember.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B11000000000000000000001 /* EmberTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberTheme.swift; sourceTree = "<group>"; };
+		D11000000000000000000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		D11000000000000000000002 /* LiveAudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAudioView.swift; sourceTree = "<group>"; };
+		D11000000000000000000003 /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		D11000000000000000000004 /* RealtimeAudioStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeAudioStreamService.swift; sourceTree = "<group>"; };
+		D11000000000000000000005 /* AudioFeatureExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFeatureExtractor.swift; sourceTree = "<group>"; };
+		D11000000000000000000006 /* TelemetryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryModels.swift; sourceTree = "<group>"; };
+		D11000000000000000000007 /* TelemetryBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryBuffer.swift; sourceTree = "<group>"; };
+		D11000000000000000000008 /* FacialTelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacialTelemetryManager.swift; sourceTree = "<group>"; };
+		D11000000000000000000009 /* MotionTelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionTelemetryManager.swift; sourceTree = "<group>"; };
+		D1100000000000000000000A /* AudioTelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTelemetryManager.swift; sourceTree = "<group>"; };
+		D1100000000000000000000B /* SensoryEnvironmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensoryEnvironmentManager.swift; sourceTree = "<group>"; };
+		D1100000000000000000000C /* TouchTelemetryCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchTelemetryCaptureView.swift; sourceTree = "<group>"; };
+		D1100000000000000000000D /* TelemetryOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryOrchestrator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,12 +68,23 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				92C3DFEB2F94695F00624728 /* Accelerate.framework in Frameworks */,
+				92C3DFE92F94694000624728 /* CoreML.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		92C3DFE72F94694000624728 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				92C3DFEA2F94695F00624728 /* Accelerate.framework */,
+				92C3DFE82F94694000624728 /* CoreML.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A40000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
@@ -49,6 +92,7 @@
 				A40000000000000000000003 /* Products */,
 				A20000000000000000000009 /* Info.plist */,
 				A2000000000000000000000A /* Ember-Bridging-Header.h */,
+				92C3DFE72F94694000624728 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -63,6 +107,20 @@
 				A20000000000000000000006 /* ProfileSyncCoordinator.swift */,
 				A20000000000000000000007 /* AppEnvironment.swift */,
 				A20000000000000000000008 /* MemoryFootprint.swift */,
+				B11000000000000000000001 /* EmberTheme.swift */,
+				D11000000000000000000001 /* MainTabView.swift */,
+				D11000000000000000000002 /* LiveAudioView.swift */,
+				D11000000000000000000003 /* AudioCaptureService.swift */,
+				D11000000000000000000004 /* RealtimeAudioStreamService.swift */,
+				D11000000000000000000005 /* AudioFeatureExtractor.swift */,
+				D11000000000000000000006 /* TelemetryModels.swift */,
+				D11000000000000000000007 /* TelemetryBuffer.swift */,
+				D11000000000000000000008 /* FacialTelemetryManager.swift */,
+				D11000000000000000000009 /* MotionTelemetryManager.swift */,
+				D1100000000000000000000A /* AudioTelemetryManager.swift */,
+				D1100000000000000000000B /* SensoryEnvironmentManager.swift */,
+				D1100000000000000000000C /* TouchTelemetryCaptureView.swift */,
+				D1100000000000000000000D /* TelemetryOrchestrator.swift */,
 			);
 			path = Ember;
 			sourceTree = "<group>";
@@ -85,6 +143,7 @@
 				A30000000000000000000002 /* Sources */,
 				A30000000000000000000001 /* Frameworks */,
 				A30000000000000000000003 /* Resources */,
+				C11000000000000000000001 /* Copy Cactus weights */,
 			);
 			buildRules = (
 			);
@@ -151,10 +210,45 @@
 				A10000000000000000000006 /* ProfileSyncCoordinator.swift in Sources */,
 				A10000000000000000000007 /* AppEnvironment.swift in Sources */,
 				A10000000000000000000008 /* MemoryFootprint.swift in Sources */,
+				B12000000000000000000001 /* EmberTheme.swift in Sources */,
+				D12000000000000000000001 /* MainTabView.swift in Sources */,
+				D12000000000000000000002 /* LiveAudioView.swift in Sources */,
+				D12000000000000000000003 /* AudioCaptureService.swift in Sources */,
+				D12000000000000000000004 /* RealtimeAudioStreamService.swift in Sources */,
+				D12000000000000000000005 /* AudioFeatureExtractor.swift in Sources */,
+				D12000000000000000000006 /* TelemetryModels.swift in Sources */,
+				D12000000000000000000007 /* TelemetryBuffer.swift in Sources */,
+				D12000000000000000000008 /* FacialTelemetryManager.swift in Sources */,
+				D12000000000000000000009 /* MotionTelemetryManager.swift in Sources */,
+				D1200000000000000000000A /* AudioTelemetryManager.swift in Sources */,
+				D1200000000000000000000B /* SensoryEnvironmentManager.swift in Sources */,
+				D1200000000000000000000C /* TouchTelemetryCaptureView.swift in Sources */,
+				D1200000000000000000000D /* TelemetryOrchestrator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C11000000000000000000001 /* Copy Cactus weights */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Cactus weights";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "bash \"${SRCROOT}/scripts/copy-cactus-weights.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		A70000000000000000000001 /* Debug */ = {
@@ -193,19 +287,17 @@
 			};
 			name = Release;
 		};
-		A70000000000000000000003 /* Debug Ember */ = {
+		A70000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = G6HCJPD5V8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../cactus/cactus",
-				);
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../cactus/cactus";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -214,14 +306,38 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/../cactus/cactus/build",
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(SRCROOT)/../cactus/apple",
+					"$(SRCROOT)/../cactus/libs/curl/ios/device",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(SRCROOT)/../cactus/apple",
+					"$(SRCROOT)/../cactus/libs/curl/ios/simulator",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-framework",
+					"CFNetwork",
 					"-lc++",
-					"-lcactus",
+					"-lcactus-device",
+					"-lcurl",
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-framework",
+					"CFNetwork",
+					"-lc++",
+					"-lcactus-simulator",
+					"-lcurl",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ember.Ember;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -232,19 +348,17 @@
 			};
 			name = Debug;
 		};
-		A70000000000000000000004 /* Release Ember */ = {
+		A70000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = G6HCJPD5V8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/../cactus/cactus",
-				);
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../cactus/cactus";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -253,14 +367,38 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/../cactus/cactus/build",
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(SRCROOT)/../cactus/apple",
+					"$(SRCROOT)/../cactus/libs/curl/ios/device",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(SRCROOT)/../cactus/apple",
+					"$(SRCROOT)/../cactus/libs/curl/ios/simulator",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-framework",
+					"CFNetwork",
 					"-lc++",
-					"-lcactus",
+					"-lcactus-device",
+					"-lcurl",
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-framework",
+					"CFNetwork",
+					"-lc++",
+					"-lcactus-simulator",
+					"-lcurl",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ember.Ember;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -286,8 +424,8 @@
 		A80000000000000000000002 /* Build configuration list for PBXNativeTarget "Ember" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A70000000000000000000003 /* Debug Ember */,
-				A70000000000000000000004 /* Release Ember */,
+				A70000000000000000000003 /* Debug */,
+				A70000000000000000000004 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

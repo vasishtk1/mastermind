@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 /// Polls clinician profile every 60 seconds and applies it to `CactusManager`.
+/// Set `EmberBackendSyncEnabled` to `true` in Info.plist when FastAPI is reachable (disabled by default to avoid log spam offline).
 @MainActor
 final class ProfileSyncCoordinator: ObservableObject {
     private let api: APIService
@@ -10,6 +11,8 @@ final class ProfileSyncCoordinator: ObservableObject {
 
     @Published private(set) var lastSync: Date?
     @Published private(set) var lastSyncError: String?
+
+    private var isSyncEnabled: Bool { Bundle.main.emberBackendSyncEnabled }
 
     init(api: APIService, patientId: String) {
         self.api = api
@@ -21,6 +24,10 @@ final class ProfileSyncCoordinator: ObservableObject {
     }
 
     func start() {
+        guard isSyncEnabled else {
+            lastSyncError = nil
+            return
+        }
         timer?.cancel()
         timer = Timer.publish(every: 60, on: .main, in: .common)
             .autoconnect()
@@ -37,6 +44,10 @@ final class ProfileSyncCoordinator: ObservableObject {
     }
 
     func syncNow() async {
+        guard isSyncEnabled else {
+            lastSyncError = nil
+            return
+        }
         do {
             let profile = try await api.fetchClinicianProfile(patientId: patientId)
             CactusManager.shared.applyClinicianProfile(profile)

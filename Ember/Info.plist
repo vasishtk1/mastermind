@@ -27,6 +27,10 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>APIBaseURL</key>
+	<string>http://127.0.0.1:8000</string>
+	<key>EmberBackendSyncEnabled</key>
+	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ember analyzes microphone audio on-device to detect distress and support you during difficult moments.</string>
 	<key>NSAppTransportSecurity</key>

@@ -11,14 +11,32 @@ final class CactusManager: ObservableObject {
 
     @Published private(set) var mode: EmberListeningMode = .listeningParakeet
     @Published var lastError: String?
+    /// Non-fatal notice when optional models (e.g. Parakeet) are not bundled.
+    @Published private(set) var bootstrapNotice: String?
     @Published private(set) var lastIntervention: InterventionRunResult?
+    /// Short copy of the last metrics payload shown in UI.
+    @Published private(set) var lastGemmaEngineJSONPreview: String = ""
+    /// Parsed `success` field from the last Gemma engine JSON, when decodable.
+    @Published private(set) var lastGemmaEngineSuccess: Bool?
     @Published private(set) var liveTranscript: String = ""
     @Published private(set) var lastRAMFootprintMB: Double = MemoryFootprint.currentMegabytes()
     @Published private(set) var lastLatencyMs: Double = 0
     @Published private(set) var clinicianProfile: ClinicianProfile = .default
+    @Published private(set) var realtimeMonitoringEnabled = false
+    @Published private(set) var realtimeSpeechDetected = false
+    @Published private(set) var realtimeVADScore: Double = 0
+    @Published private(set) var realtimeChunksSeen = 0
+    @Published private(set) var realtimeEventsUploaded = 0
+    @Published private(set) var realtimeLastTranscript = ""
+    @Published private(set) var realtimeLastGemmaSummary = ""
+    @Published private(set) var realtimeLastUploadError: String?
+    @Published private(set) var manualMetricsJSON: String = ""
+    @Published private(set) var realtimeMetricsJSON: String = ""
+    @Published private(set) var manualMetricsSequence: Int = 0
+    @Published private(set) var realtimeMetricsSequence: Int = 0
 
     /// Weights directory names match `cactus download` output (`weights/<model-folder>`).
-    private let gemma4WeightsFolder = "gemma-4-e2b-it"
+    private let gemma4WeightsFolder = "functiongemma-270m-it"
     private let parakeetWeightsFolder = "parakeet-tdt-0.6b-v3"
 
     /// `cactus_model_t` (`void *`) from `cactus_ffi.h`.
@@ -27,8 +45,13 @@ final class CactusManager: ObservableObject {
 
     private let interventionQueue = DispatchQueue(label: "com.ember.cactus.intervention", qos: .userInitiated)
     private let listenQueue = DispatchQueue(label: "com.ember.cactus.listen", qos: .utility)
+    private let realtimeStream = RealtimeAudioStreamService()
 
     private var memoryPoll: AnyCancellable?
+    private var realtimeTask: Task<Void, Never>?
+    private var realtimeChunkInFlight = false
+    private var internalRealtimeSeq = 0
+    private var internalManualSeq = 0
 
     private init() {
         Self.enforceZeroCloudInferencePolicy()
@@ -41,6 +64,7 @@ final class CactusManager: ObservableObject {
 
     /// Releases native handles (call from `scenePhase` `.background` / `.inactive` in production).
     func shutdown() {
+        stopRealtimeMonitoring()
         memoryPoll?.cancel()
         memoryPoll = nil
         if let gemmaModel {
@@ -64,6 +88,7 @@ final class CactusManager: ObservableObject {
     /// Copies bundled weight folders from `Bundle.main` into `Application Support/Ember/weights` and initializes models.
     func bootstrapIfNeeded(patientId: String) throws {
         lastError = nil
+        bootstrapNotice = nil
         Self.enforceZeroCloudInferencePolicy()
 
         let fm = FileManager.default
@@ -75,13 +100,8 @@ final class CactusManager: ObservableObject {
             named: gemma4WeightsFolder,
             to: weightsRoot.appendingPathComponent(gemma4WeightsFolder, isDirectory: true)
         )
-        try Self.copyBundledWeightsIfPresent(
-            named: parakeetWeightsFolder,
-            to: weightsRoot.appendingPathComponent(parakeetWeightsFolder, isDirectory: true)
-        )
 
         let gemmaPath = weightsRoot.appendingPathComponent(gemma4WeightsFolder).path
-        let parakeetPath = weightsRoot.appendingPathComponent(parakeetWeightsFolder).path
 
         if gemmaModel == nil {
             var handle: UnsafeMutableRawPointer?
@@ -95,16 +115,26 @@ final class CactusManager: ObservableObject {
             gemmaModel = h
         }
 
-        if parakeetModel == nil {
-            var handle: UnsafeMutableRawPointer?
-            parakeetPath.withCString { cPath in
-                handle = cactus_init(cPath, nil, true)
+        let hasParakeetBundle = Self.bundledWeightsFolderExists(named: parakeetWeightsFolder)
+        if hasParakeetBundle {
+            try Self.copyBundledWeightsIfPresent(
+                named: parakeetWeightsFolder,
+                to: weightsRoot.appendingPathComponent(parakeetWeightsFolder, isDirectory: true)
+            )
+            let parakeetPath = weightsRoot.appendingPathComponent(parakeetWeightsFolder).path
+            if parakeetModel == nil {
+                var handle: UnsafeMutableRawPointer?
+                parakeetPath.withCString { cPath in
+                    handle = cactus_init(cPath, nil, true)
+                }
+                guard let h = handle else {
+                    let err = Self.lastCactusErrorMessage()
+                    throw NSError(domain: "Ember", code: 2, userInfo: [NSLocalizedDescriptionKey: err])
+                }
+                parakeetModel = h
             }
-            guard let h = handle else {
-                let err = Self.lastCactusErrorMessage()
-                throw NSError(domain: "Ember", code: 2, userInfo: [NSLocalizedDescriptionKey: err])
-            }
-            parakeetModel = h
+        } else {
+            bootstrapNotice = "Parakeet weights not bundled — on-device STT is disabled. Add `weights/parakeet-tdt-0.6b-v3` (run `cactus download nvidia/parakeet-tdt-0.6b-v3`) and rebuild."
         }
 
         _ = patientId // reserved for future per-patient local caches
@@ -124,9 +154,118 @@ final class CactusManager: ObservableObject {
         }
     }
 
+    // MARK: - Realtime monitoring (VAD -> STT -> Gemma -> DB)
+
+    func startRealtimeMonitoring(api: APIService, patientIdProvider: @escaping () -> String) async throws {
+        if realtimeMonitoringEnabled { return }
+        guard gemmaModel != nil else {
+            throw NSError(domain: "Ember", code: 70, userInfo: [NSLocalizedDescriptionKey: "Gemma model not initialized"])
+        }
+
+        let micOK = await realtimeStream.requestPermission()
+        guard micOK else {
+            throw NSError(domain: "Ember", code: 71, userInfo: [NSLocalizedDescriptionKey: "Microphone permission denied"])
+        }
+
+        let stream = try realtimeStream.startStreaming(chunkSeconds: 1.0)
+        realtimeMonitoringEnabled = true
+        realtimeSpeechDetected = false
+        realtimeVADScore = 0
+        realtimeChunksSeen = 0
+        realtimeMetricsSequence = 0
+        internalRealtimeSeq = 0
+        realtimeLastUploadError = nil
+        realtimeChunkInFlight = false
+        mode = .listeningParakeet
+
+        realtimeTask?.cancel()
+        realtimeTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                for try await chunk in stream {
+                    if Task.isCancelled { break }
+                    await self.processRealtimeChunk(chunk, api: api, patientId: patientIdProvider())
+                }
+            } catch {
+                await MainActor.run {
+                    self.lastError = "Realtime monitor failed: \(error.localizedDescription)"
+                }
+            }
+            await MainActor.run {
+                self.realtimeMonitoringEnabled = false
+                if self.mode == .interveningGemma4 {
+                    self.mode = .listeningParakeet
+                }
+            }
+        }
+    }
+
+    func stopRealtimeMonitoring() {
+        realtimeTask?.cancel()
+        realtimeTask = nil
+        realtimeStream.stopStreaming()
+        realtimeMonitoringEnabled = false
+        realtimeChunkInFlight = false
+    }
+
+    private func processRealtimeChunk(_ chunk: Data, api: APIService, patientId: String) async {
+        guard realtimeMonitoringEnabled else { return }
+
+        realtimeChunksSeen += 1
+        internalRealtimeSeq += 1
+        realtimeMetricsSequence = internalRealtimeSeq
+        let realtimeMetrics = AudioFeatureExtractor.compute(fromPCM16LE: chunk)
+        let realtimeJSON = Self.encodeMetricsEnvelopeJSON(
+            source: "realtime_monitor",
+            sequenceID: internalRealtimeSeq,
+            metrics: realtimeMetrics,
+            gemmaSuccess: nil,
+            gemmaLatencyMs: nil,
+            ramUsageMB: nil
+        )
+        realtimeMetricsJSON = realtimeJSON
+        print("[Ember][Metrics][Realtime]\n\(realtimeJSON)")
+        NSLog("[Ember][Metrics][Realtime] %@", realtimeJSON)
+
+        if realtimeChunkInFlight { return }
+        realtimeChunkInFlight = true
+        defer { realtimeChunkInFlight = false }
+
+        do {
+            let vad = try await detectSpeechWithVAD(audioPCM: chunk)
+            realtimeSpeechDetected = vad.detected
+            realtimeVADScore = vad.score
+
+            guard vad.detected else { return }
+
+            let transcript = try await transcribePCMChunk(audioPCM: chunk)
+            realtimeLastTranscript = transcript
+
+            let gemma = try await runGemmaAudioProbe(audioPCM: chunk, updateMode: false)
+            realtimeLastGemmaSummary = gemma
+
+            let nowISO = ISO8601DateFormatter().string(from: Date())
+            let event = IncomingDeviceEvent(
+                patientId: patientId,
+                triggerReason: "realtime_vad_speech_detected",
+                distressLevel: vad.score >= 0.85 ? 7 : 4,
+                interventionUsed: "cactus_vad_realtime_monitor",
+                patientStabilized: false,
+                deviceTimestamp: nowISO,
+                interventionTranscript: "metrics=\(realtimeJSON)\n\nstt=\(transcript)\n\ngemma=\(gemma)",
+                cloudInferenceUsed: false
+            )
+            try await api.uploadEvent(event: event)
+            realtimeEventsUploaded += 1
+            realtimeLastUploadError = nil
+        } catch {
+            realtimeLastUploadError = error.localizedDescription
+        }
+    }
+
     // MARK: - Intervention (Gemma 4)
 
-    /// Runs a single on-device completion using `gemma-4-E2B-it` weights and parses `log_crisis_event` if present.
+    /// Runs a single on-device completion using FunctionGemma weights and parses `log_crisis_event` if present.
     func runInterventionAgent(triggerReason: String, patientId: String) async throws -> InterventionRunResult {
         Self.enforceZeroCloudInferencePolicy()
         guard let model = gemmaModel else {
@@ -233,7 +372,7 @@ final class CactusManager: ObservableObject {
             throw NSError(domain: "Ember", code: 4, userInfo: [NSLocalizedDescriptionKey: err])
         }
 
-        let raw = String(cString: responseBuffer)
+        let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
         let parsed = try Self.parseInterventionResponse(
             rawJSON: raw,
             sinkTranscript: sink.text,
@@ -247,6 +386,230 @@ final class CactusManager: ObservableObject {
         liveTranscript = parsed.transcript
 
         return parsed
+    }
+
+    // MARK: - Audio probe (FunctionGemma + PCM)
+
+    /// Runs a short completion with microphone PCM attached; logs the **full** engine JSON to stdout and the system log.
+    func runGemmaAudioProbeAndLog(audioPCM: Data) async throws {
+        _ = try await runGemmaAudioProbe(audioPCM: audioPCM, updateMode: true)
+    }
+
+    private func runGemmaAudioProbe(audioPCM: Data, updateMode: Bool) async throws -> String {
+        await MainActor.run {
+            lastGemmaEngineJSONPreview = ""
+            lastGemmaEngineSuccess = nil
+        }
+        Self.enforceZeroCloudInferencePolicy()
+        guard let model = gemmaModel else {
+            throw NSError(domain: "Ember", code: 3, userInfo: [NSLocalizedDescriptionKey: "Gemma model not initialized"])
+        }
+        guard !audioPCM.isEmpty else {
+            throw NSError(domain: "Ember", code: 60, userInfo: [NSLocalizedDescriptionKey: "Empty audio buffer"])
+        }
+
+        let messagesJSON = try Self.encodeJSON([
+            ["role": "system", "content": "You are a concise assistant running entirely on-device."],
+            [
+                "role": "user",
+                "content": "Listen to this microphone capture. Summarize what you hear in 2–3 short sentences. If audio is silent or unclear, say so.",
+            ],
+        ])
+
+        let optionsJSON = """
+        {
+          "auto_handoff": false,
+          "telemetry_enabled": false,
+          "max_tokens": 400,
+          "temperature": 0.35,
+          "top_p": 0.9
+        }
+        """
+
+        let toolsJSON = "[]"
+
+        if updateMode {
+            await MainActor.run { mode = .interveningGemma4 }
+        }
+
+        let bufferSize = 1024 * 1024
+        let responseBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: bufferSize)
+        responseBuffer.initialize(repeating: 0, count: bufferSize)
+        defer { responseBuffer.deallocate() }
+
+        let modelPtr = model
+        let pcmCount = audioPCM.count
+
+        let rc: Int32 = await withCheckedContinuation { continuation in
+            interventionQueue.async {
+                let written: Int32 = audioPCM.withUnsafeBytes { rawBuf -> Int32 in
+                    guard let base = rawBuf.bindMemory(to: UInt8.self).baseAddress else {
+                        return Int32(-1)
+                    }
+                    return messagesJSON.withCString { m in
+                        optionsJSON.withCString { o in
+                            toolsJSON.withCString { t in
+                                cactus_complete(
+                                    modelPtr,
+                                    m,
+                                    responseBuffer,
+                                    bufferSize,
+                                    o,
+                                    t,
+                                    nil,
+                                    nil,
+                                    base,
+                                    pcmCount
+                                )
+                            }
+                        }
+                    }
+                }
+                continuation.resume(returning: written)
+            }
+        }
+
+        if rc < 0 {
+            let err = Self.lastCactusErrorMessage()
+            if updateMode {
+                await MainActor.run { mode = .listeningParakeet }
+            }
+            throw NSError(domain: "Ember", code: 4, userInfo: [NSLocalizedDescriptionKey: err])
+        }
+
+        let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
+        let responseText = Self.extractResponseText(fromRawJSON: raw)
+        let metrics = AudioFeatureExtractor.compute(fromPCM16LE: audioPCM)
+        let gemmaParsed = Self.extractGemmaTelemetry(fromRawJSON: raw)
+        if updateMode {
+            internalManualSeq += 1
+            manualMetricsSequence = internalManualSeq
+        }
+        let seq = updateMode ? internalManualSeq : internalRealtimeSeq
+        let metricsJSON = Self.encodeMetricsEnvelopeJSON(
+            source: updateMode ? "manual_recording" : "realtime_voiced_chunk",
+            sequenceID: seq,
+            metrics: metrics,
+            gemmaSuccess: gemmaParsed.success,
+            gemmaLatencyMs: gemmaParsed.totalTimeMs,
+            ramUsageMB: gemmaParsed.ramUsageMB
+        )
+
+        await MainActor.run {
+            print("[Ember][Metrics]\n\(metricsJSON)")
+            NSLog("[Ember][Metrics] %@", metricsJSON)
+
+            let previewLimit = 4_096
+            let preview = metricsJSON.count <= previewLimit
+                ? metricsJSON
+                : String(metricsJSON.prefix(previewLimit)) + "\n… (truncated for on-screen preview)"
+            lastGemmaEngineJSONPreview = preview
+            manualMetricsJSON = preview
+
+            lastGemmaEngineSuccess = gemmaParsed.success
+            if let totalMs = gemmaParsed.totalTimeMs { lastLatencyMs = totalMs }
+            if let ramMb = gemmaParsed.ramUsageMB { lastRAMFootprintMB = ramMb }
+
+            if updateMode {
+                mode = .listeningParakeet
+            }
+        }
+
+        return responseText
+    }
+
+    private func detectSpeechWithVAD(audioPCM: Data) async throws -> (detected: Bool, score: Double) {
+        guard let model = parakeetModel else {
+            // FunctionGemma weights are not guaranteed to expose VAD kernels; fall back to RMS detector.
+            let fallbackScore = Self.rmsEnergyScore(fromPCM16LE: audioPCM)
+            return (fallbackScore > 0.012, fallbackScore)
+        }
+        let optionsJSON = #"{"sample_rate":16000}"#
+        let bufferSize = 256 * 1024
+        let responseBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: bufferSize)
+        responseBuffer.initialize(repeating: 0, count: bufferSize)
+        defer { responseBuffer.deallocate() }
+
+        let rc: Int32 = await withCheckedContinuation { continuation in
+            listenQueue.async {
+                let written: Int32 = audioPCM.withUnsafeBytes { rawBuf in
+                    guard let base = rawBuf.bindMemory(to: UInt8.self).baseAddress else { return Int32(-1) }
+                    return optionsJSON.withCString { opt in
+                        cactus_vad(
+                            model,
+                            nil,
+                            responseBuffer,
+                            bufferSize,
+                            opt,
+                            base,
+                            audioPCM.count
+                        )
+                    }
+                }
+                continuation.resume(returning: written)
+            }
+        }
+
+        if rc < 0 {
+            let err = Self.lastCactusErrorMessage()
+            throw NSError(domain: "Ember", code: 73, userInfo: [NSLocalizedDescriptionKey: "VAD failed: \(err)"])
+        }
+
+        let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
+        if let data = raw.data(using: .utf8),
+           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let score = Self.numberValue(root, keys: ["speech_probability", "score", "confidence"]) ?? 0
+            let detected = Self.boolValue(root, keys: ["speech_detected", "contains_speech", "has_speech", "is_speech"]) ?? (score >= 0.5)
+            return (detected, score)
+        }
+
+        let fallbackScore = Self.rmsEnergyScore(fromPCM16LE: audioPCM)
+        return (fallbackScore > 0.012, fallbackScore)
+    }
+
+    private func transcribePCMChunk(audioPCM: Data) async throws -> String {
+        guard let model = parakeetModel else {
+            throw NSError(
+                domain: "Ember",
+                code: 74,
+                userInfo: [NSLocalizedDescriptionKey: "Parakeet model not initialized. Bundle `parakeet-tdt-0.6b-v3` for realtime STT."]
+            )
+        }
+        let optionsJSON = #"{"task":"transcribe","sample_rate":16000}"#
+        let bufferSize = 1024 * 1024
+        let responseBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: bufferSize)
+        responseBuffer.initialize(repeating: 0, count: bufferSize)
+        defer { responseBuffer.deallocate() }
+
+        let rc: Int32 = await withCheckedContinuation { continuation in
+            listenQueue.async {
+                let written: Int32 = audioPCM.withUnsafeBytes { rawBuf in
+                    guard let base = rawBuf.bindMemory(to: UInt8.self).baseAddress else { return Int32(-1) }
+                    return optionsJSON.withCString { opt in
+                        cactus_transcribe(
+                            model,
+                            nil,
+                            nil,
+                            responseBuffer,
+                            bufferSize,
+                            opt,
+                            nil,
+                            nil,
+                            base,
+                            audioPCM.count
+                        )
+                    }
+                }
+                continuation.resume(returning: written)
+            }
+        }
+        if rc < 0 {
+            let err = Self.lastCactusErrorMessage()
+            throw NSError(domain: "Ember", code: 75, userInfo: [NSLocalizedDescriptionKey: "Transcription failed: \(err)"])
+        }
+
+        let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
+        return Self.extractTranscriptionText(fromRawJSON: raw)
     }
 
     // MARK: - HIPAA: zero cloud fallback
@@ -276,6 +639,14 @@ final class CactusManager: ObservableObject {
             appropriateFor: nil,
             create: true
         ).appendingPathComponent("Ember", isDirectory: true)
+    }
+
+    private static func bundledWeightsFolderExists(named folder: String) -> Bool {
+        guard let srcRoot = Bundle.main.resourceURL?.appendingPathComponent("weights", isDirectory: true) else {
+            return false
+        }
+        let src = srcRoot.appendingPathComponent(folder, isDirectory: true)
+        return FileManager.default.fileExists(atPath: src.path)
     }
 
     private static func copyBundledWeightsIfPresent(named folder: String, to destinationDir: URL) throws {
@@ -364,6 +735,137 @@ final class CactusManager: ObservableObject {
             throw NSError(domain: "Ember", code: 20, userInfo: [NSLocalizedDescriptionKey: "UTF-8 encode failed"])
         }
         return s
+    }
+
+    private static func decodeResponseBuffer(_ buffer: UnsafeMutablePointer<CChar>, writtenCount: Int32, capacity: Int) -> String {
+        let safeCapacity = max(0, capacity)
+        let n = Int(max(0, writtenCount))
+        if n > 0 {
+            let bounded = min(n, max(0, safeCapacity - 1))
+            let rawPtr = UnsafeRawPointer(buffer)
+            let data = Data(bytes: rawPtr, count: bounded)
+            if let s = String(data: data, encoding: .utf8), !s.isEmpty {
+                return s
+            }
+        }
+        return String(cString: buffer)
+    }
+
+    private static func extractGemmaTelemetry(fromRawJSON rawJSON: String) -> (success: Bool?, totalTimeMs: Double?, ramUsageMB: Double?) {
+        guard let data = rawJSON.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (nil, nil, nil)
+        }
+        let success = (root["success"] as? Bool) ?? (root["success"] as? NSNumber)?.boolValue
+        let totalMs = numberValue(root, keys: ["total_time_ms"])
+        let ram = numberValue(root, keys: ["ram_usage_mb"])
+        return (success, totalMs, ram)
+    }
+
+    private static func encodeMetricsEnvelopeJSON(
+        source: String,
+        sequenceID: Int,
+        metrics: AudioMetrics,
+        gemmaSuccess: Bool?,
+        gemmaLatencyMs: Double?,
+        ramUsageMB: Double?
+    ) -> String {
+        var obj: [String: Any] = [
+            "source": source,
+            "sequence_id": sequenceID,
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "metrics": [
+                "sample_rate_hz": metrics.sampleRateHz,
+                "duration_sec": metrics.durationSec,
+                "fundamental_frequency_hz": metrics.fundamentalFrequencyHz,
+                "jitter_approx": metrics.jitterApprox,
+                "shimmer_approx": metrics.shimmerApprox,
+                "rms": metrics.rms,
+                "spectral_flux": metrics.spectralFlux,
+                "mfcc_deviation": metrics.mfccDeviation,
+                "mfcc_1_to_13": metrics.mfcc1to13,
+                "pitch_escalation": metrics.pitchEscalation,
+                "breath_rate": metrics.breathRate,
+                "spectral_centroid": metrics.spectralCentroid,
+                "spectral_rolloff": metrics.spectralRolloff,
+                "zcr_density": metrics.zcrDensity,
+            ],
+        ]
+        if let gemmaSuccess { obj["gemma_success"] = gemmaSuccess }
+        if let gemmaLatencyMs { obj["gemma_total_time_ms"] = gemmaLatencyMs }
+        if let ramUsageMB { obj["ram_usage_mb"] = ramUsageMB }
+
+        if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) {
+            return s
+        }
+        return "{}"
+    }
+
+    private static func extractResponseText(fromRawJSON rawJSON: String) -> String {
+        guard let data = rawJSON.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ""
+        }
+        return (root["response"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private static func extractTranscriptionText(fromRawJSON rawJSON: String) -> String {
+        guard let data = rawJSON.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return rawJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let candidates: [String?] = [
+            root["text"] as? String,
+            root["transcript"] as? String,
+            root["response"] as? String,
+        ]
+        for value in candidates {
+            let cleaned = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                return cleaned
+            }
+        }
+        return rawJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func rmsEnergyScore(fromPCM16LE pcm: Data) -> Double {
+        guard pcm.count >= 2 else { return 0 }
+        let sampleCount = pcm.count / 2
+        let sumSquares: Double = pcm.withUnsafeBytes { raw in
+            let s = raw.bindMemory(to: Int16.self)
+            var accum: Double = 0
+            for i in 0..<sampleCount {
+                let normalized = Double(s[i]) / Double(Int16.max)
+                accum += normalized * normalized
+            }
+            return accum
+        }
+        return sqrt(sumSquares / Double(sampleCount))
+    }
+
+    private static func numberValue(_ root: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            if let n = root[key] as? Double { return n }
+            if let n = root[key] as? NSNumber { return n.doubleValue }
+            if let s = root[key] as? String, let n = Double(s) { return n }
+        }
+        return nil
+    }
+
+    private static func boolValue(_ root: [String: Any], keys: [String]) -> Bool? {
+        for key in keys {
+            if let b = root[key] as? Bool { return b }
+            if let n = root[key] as? NSNumber { return n.boolValue }
+            if let s = root[key] as? String {
+                switch s.lowercased() {
+                case "true", "1", "yes", "y": return true
+                case "false", "0", "no", "n": return false
+                default: break
+                }
+            }
+        }
+        return nil
     }
 
     private static func parseInterventionResponse(
