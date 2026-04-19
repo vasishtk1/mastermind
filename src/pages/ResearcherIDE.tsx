@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Activity, Brain, Crosshair, Loader2, Rocket, Save, TrendingUp, Waves, Wind, Zap } from "lucide-react";
-import { PATIENTS, PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
+import { PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
 import type { Profile, RadarMetrics, TriggerCategory } from "@/lib/ember-types";
+import { usePatientDirectory } from "@/context/PatientDirectoryContext";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES: TriggerCategory[] = [
@@ -34,8 +35,14 @@ const toArray = (r: RadarMetrics) => RADAR_KEYS.map((k) => r[k]);
 const fmtDelta = (delta: number) => `${delta >= 0 ? "+" : ""}${Math.round(delta)}`;
 
 const ResearcherIDE = () => {
+  const { patients } = usePatientDirectory();
   const [text, setText] = useState("");
-  const [patientId, setPatientId] = useState(PATIENTS[0].id);
+  const [patientId, setPatientId] = useState(() => patients[0]?.id ?? "");
+
+  useEffect(() => {
+    if (patients.length === 0) return;
+    setPatientId((id) => (patients.some((p) => p.id === id) ? id : patients[0].id));
+  }, [patients]);
   const [categoryOptions, setCategoryOptions] = useState<string[]>(CATEGORIES);
   const [category, setCategory] = useState<string>("Auditory overstimulation");
   const [customCategory, setCustomCategory] = useState("");
@@ -112,7 +119,11 @@ const ResearcherIDE = () => {
               onChange={(e) => setPatientId(e.target.value)}
               className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary"
             >
-              {PATIENTS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>

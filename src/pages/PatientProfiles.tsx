@@ -13,7 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { PATIENTS, PROFILES, EPISODES } from "@/lib/ember-mock";
+import { PROFILES, EPISODES } from "@/lib/ember-mock";
 import type {
   ClinicalIncidentReport,
   EpisodeEvent,
@@ -24,6 +24,25 @@ import type {
   ThresholdAdjustment,
 } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { usePatientDirectory } from "@/context/PatientDirectoryContext";
 
 const API_BASE = "http://localhost:8000";
 
@@ -56,6 +75,193 @@ const accentClass = (a: Patient["accent"]) =>
   : a === "violet" ? "bg-secondary/15 text-secondary border-secondary/40"
   : "bg-danger/15 text-danger border-danger/40";
 
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) {
+    const w = parts[0];
+    return (w.length >= 2 ? w.slice(0, 2) : `${w[0]}?`).toUpperCase();
+  }
+  const first = parts[0][0] ?? "";
+  const last = parts[parts.length - 1][0] ?? "";
+  return `${first}${last}`.toUpperCase();
+}
+
+function newPatientId(): string {
+  const raw =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random().toString(16).slice(2, 10)}`;
+  return `pat-${raw.slice(0, 12)}`;
+}
+
+type PatientFormField = "name" | "dob" | "condition" | "clinician";
+
+function validatePatientForm(values: {
+  name: string;
+  dob: string;
+  condition: string;
+  clinician: string;
+}): Partial<Record<PatientFormField, string>> {
+  const errors: Partial<Record<PatientFormField, string>> = {};
+  const name = values.name.trim();
+  if (!name) errors.name = "Full name is required.";
+  else if (name.length < 2) errors.name = "Enter at least two characters.";
+
+  if (!values.dob) errors.dob = "Date of birth is required.";
+  else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.dob)) errors.dob = "Choose a complete date.";
+
+  if (!values.condition.trim()) errors.condition = "Primary condition or clinical focus is required.";
+  if (!values.clinician.trim()) errors.clinician = "Attending clinician is required.";
+  return errors;
+}
+
+const AddPatientDialog = ({
+  open,
+  onOpenChange,
+  onAdd,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (patient: Patient) => void;
+}) => {
+  const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [condition, setCondition] = useState("");
+  const [clinician, setClinician] = useState("");
+  const [accent, setAccent] = useState<Patient["accent"]>("teal");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<PatientFormField, string>>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setDob("");
+    setCondition("");
+    setClinician("");
+    setAccent("teal");
+    setFieldErrors({});
+  }, [open]);
+
+  const submit = () => {
+    const errors = validatePatientForm({ name, dob, condition, clinician });
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    onAdd({
+      id: newPatientId(),
+      name: name.trim(),
+      initials: initialsFromName(name),
+      dob,
+      condition: condition.trim(),
+      clinician: clinician.trim(),
+      accent,
+      last_activity: new Date().toISOString(),
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md z-[60]">
+        <DialogHeader>
+          <DialogTitle>Add patient</DialogTitle>
+          <DialogDescription>
+            Enter the core demographics used across Ember profiles and monitoring. Fields marked as required must be
+            completed before the patient appears in this list.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-name">
+              Full name <span className="text-danger">*</span>
+            </Label>
+            <Input
+              id="add-patient-name"
+              autoComplete="name"
+              placeholder="e.g. Jordan A. Lee"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+              }}
+            />
+            {fieldErrors.name && <p className="text-xs text-danger">{fieldErrors.name}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-dob">
+              Date of birth <span className="text-danger">*</span>
+            </Label>
+            <Input
+              id="add-patient-dob"
+              type="date"
+              value={dob}
+              onChange={(e) => {
+                setDob(e.target.value);
+                if (fieldErrors.dob) setFieldErrors((prev) => ({ ...prev, dob: undefined }));
+              }}
+            />
+            {fieldErrors.dob && <p className="text-xs text-danger">{fieldErrors.dob}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-condition">
+              Primary condition / focus <span className="text-danger">*</span>
+            </Label>
+            <Input
+              id="add-patient-condition"
+              placeholder="e.g. PTSD · Auditory hypervigilance"
+              value={condition}
+              onChange={(e) => {
+                setCondition(e.target.value);
+                if (fieldErrors.condition) setFieldErrors((prev) => ({ ...prev, condition: undefined }));
+              }}
+            />
+            {fieldErrors.condition && <p className="text-xs text-danger">{fieldErrors.condition}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-clinician">
+              Attending clinician <span className="text-danger">*</span>
+            </Label>
+            <Input
+              id="add-patient-clinician"
+              autoComplete="off"
+              placeholder="e.g. Dr. N. Okafor"
+              value={clinician}
+              onChange={(e) => {
+                setClinician(e.target.value);
+                if (fieldErrors.clinician) setFieldErrors((prev) => ({ ...prev, clinician: undefined }));
+              }}
+            />
+            {fieldErrors.clinician && <p className="text-xs text-danger">{fieldErrors.clinician}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-accent">List accent</Label>
+            <Select value={accent} onValueChange={(v) => setAccent(v as Patient["accent"])}>
+              <SelectTrigger id="add-patient-accent">
+                <SelectValue placeholder="Choose accent" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="teal">Teal</SelectItem>
+                <SelectItem value="violet">Violet</SelectItem>
+                <SelectItem value="coral">Coral</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">Used for avatar styling in this dashboard only.</p>
+          </div>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={submit}>
+            Add patient
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const fmtTime = (iso: string) => {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1000;
@@ -66,23 +272,37 @@ const fmtTime = (iso: string) => {
 };
 
 const PatientProfiles = () => {
+  const { patients, addPatient } = usePatientDirectory();
+  const [addPatientOpen, setAddPatientOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const open = openId ? PATIENTS.find((p) => p.id === openId) ?? null : null;
+  const open = openId ? patients.find((p) => p.id === openId) ?? null : null;
+  const activeProfileCount = useMemo(
+    () => PROFILES.filter((pr) => pr.active && patients.some((p) => p.id === pr.patient_id)).length,
+    [patients],
+  );
 
   return (
     <div className="h-screen flex flex-col">
       <header className="px-8 py-5 border-b border-border flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Patient profiles</h1>
-          <p className="text-xs text-muted-foreground mt-1">{PATIENTS.length} patients · {PROFILES.length} active neuroscience profiles</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {patients.length} patients · {activeProfileCount} active neuroscience profiles
+          </p>
         </div>
-        <button className="bg-primary text-primary-foreground hover:bg-primary-glow rounded-md px-4 py-2 text-sm font-semibold flex items-center gap-2 glow-teal">
+        <button
+          type="button"
+          onClick={() => setAddPatientOpen(true)}
+          className="bg-primary text-primary-foreground hover:bg-primary-glow rounded-md px-4 py-2 text-sm font-semibold flex items-center gap-2 glow-teal"
+        >
           <Plus className="w-4 h-4" /> Add patient
         </button>
       </header>
 
+      <AddPatientDialog open={addPatientOpen} onOpenChange={setAddPatientOpen} onAdd={addPatient} />
+
       <div className="flex-1 overflow-y-auto p-8 space-y-3">
-        {PATIENTS.map((p) => {
+        {patients.map((p) => {
           const profs = PROFILES.filter((pr) => pr.patient_id === p.id);
           const active = profs.filter((pr) => pr.active).length;
           return (

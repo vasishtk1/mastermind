@@ -10,19 +10,14 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import type { IncidentReport, IncidentSeverity } from "@/lib/ember-types";
+import type { IncidentReport, IncidentSeverity, Patient } from "@/lib/ember-types";
 import { MOCK_INCIDENTS, generateIncomingIncident } from "@/lib/incident-mock";
 import { IncidentReviewModal } from "@/components/ember/IncidentReviewModal";
+import { usePatientDirectory } from "@/context/PatientDirectoryContext";
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
 // ---------------------------------------------------------------------------
-
-const PATIENTS = [
-  { id: "pat-mira",  name: "Mira K.",  initials: "MK", accent: "teal",   condition: "PTSD · AUD-003"  },
-  { id: "pat-james", name: "James T.", initials: "JT", accent: "violet", condition: "GAD · SOC-001"   },
-  { id: "pat-priya", name: "Priya S.", initials: "PS", accent: "coral",  condition: "PTSD · AUD-007"  },
-];
 
 const ACCENT_COLORS: Record<string, { ring: string; bg: string; text: string }> = {
   teal:   { ring: "ring-primary",    bg: "bg-primary/15",   text: "text-primary"       },
@@ -197,12 +192,14 @@ function IncidentCard({
 
 function PatientOverview({
   patientId,
+  patients,
   incidents,
 }: {
   patientId: string;
+  patients: Patient[];
   incidents: IncidentReport[];
 }) {
-  const patient = PATIENTS.find((p) => p.id === patientId);
+  const patient = patients.find((p) => p.id === patientId);
   const patientIncidents = incidents.filter((i) => i.patient_id === patientId);
   const unreviewed = patientIncidents.filter((i) => i.status === "unreviewed").length;
   const resolved   = patientIncidents.filter((i) => i.status === "resolved").length;
@@ -320,8 +317,14 @@ function StatBox({
 // ---------------------------------------------------------------------------
 
 export default function PatientDashboard() {
+  const { patients } = usePatientDirectory();
   const [incidents, setIncidents] = useState<IncidentReport[]>(MOCK_INCIDENTS);
-  const [activePatient, setActivePatient] = useState(PATIENTS[0].id);
+  const [activePatient, setActivePatient] = useState(() => patients[0]?.id ?? "");
+
+  useEffect(() => {
+    if (patients.length === 0) return;
+    setActivePatient((id) => (patients.some((p) => p.id === id) ? id : patients[0].id));
+  }, [patients]);
   const [selectedIncident, setSelectedIncident] = useState<IncidentReport | null>(null);
   const [newIncidentIds, setNewIncidentIds] = useState<Set<string>>(new Set());
   const [bannerIsNew, setBannerIsNew] = useState(false);
@@ -395,14 +398,14 @@ export default function PatientDashboard() {
           </div>
           <div className="flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="mono text-xs text-muted-foreground">{PATIENTS.length} patients</span>
+            <span className="mono text-xs text-muted-foreground">{patients.length} patients</span>
           </div>
         </div>
       </div>
 
       {/* ── Patient tabs ──────────────────────────────────────────────────── */}
       <div className="flex gap-2 shrink-0">
-        {PATIENTS.map((p) => {
+        {patients.map((p) => {
           const ac = ACCENT_COLORS[p.accent];
           const patIncidents = incidents.filter((i) => i.patient_id === p.id);
           const patAlerts = patIncidents.filter(
@@ -472,7 +475,7 @@ export default function PatientDashboard() {
 
         {/* Right sidebar */}
         <div className="w-64 shrink-0 overflow-y-auto space-y-4">
-          <PatientOverview patientId={activePatient} incidents={incidents} />
+          <PatientOverview patientId={activePatient} patients={patients} incidents={incidents} />
         </div>
       </div>
 
