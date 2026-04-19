@@ -1,7 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, X, Upload, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  CheckCircle,
+  Clock,
+  Cpu,
+  Loader2,
+  Plus,
+  Rocket,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react";
 import { PATIENTS, PROFILES, EPISODES } from "@/lib/ember-mock";
-import type { Patient, Profile, EpisodeEvent, RadarMetrics, ClinicalIncidentReport } from "@/lib/ember-types";
+import type {
+  ClinicalIncidentReport,
+  EpisodeEvent,
+  Patient,
+  Profile,
+  RadarMetrics,
+  RemediationProposal,
+  ThresholdAdjustment,
+} from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
 
 const API_BASE = "http://localhost:8000";
@@ -9,6 +30,24 @@ const API_BASE = "http://localhost:8000";
 async function fetchClinicalReports(patientId: string): Promise<ClinicalIncidentReport[]> {
   const res = await fetch(`${API_BASE}/api/patients/${patientId}/reports`);
   if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+async function requestRemediation(patientId: string): Promise<RemediationProposal> {
+  const res = await fetch(`${API_BASE}/api/patients/${patientId}/remediate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    let detail = `API error ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = String(body.detail);
+    } catch {
+      // ignore body parse error, fall back to status
+    }
+    throw new Error(detail);
+  }
   return res.json();
 }
 
@@ -91,14 +130,38 @@ const PatientDrawer = ({ patient, onClose }: { patient: Patient; onClose: () => 
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsError, setReportsError] = useState<string | null>(null);
 
+  const [proposal, setProposal] = useState<RemediationProposal | null>(null);
+  const [proposalLoading, setProposalLoading] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [deployedProposalId, setDeployedProposalId] = useState<string | null>(null);
+
   useEffect(() => {
     setReportsLoading(true);
     setReportsError(null);
+    setProposal(null);
+    setProposalError(null);
+    setDeployedProposalId(null);
     fetchClinicalReports(patient.id)
       .then(setReports)
       .catch((err) => setReportsError(err.message ?? "Failed to load reports"))
       .finally(() => setReportsLoading(false));
   }, [patient.id]);
+
+  const triggerRemediation = useCallback(async () => {
+    setProposalLoading(true);
+    setProposalError(null);
+    setDeployedProposalId(null);
+    try {
+      const next = await requestRemediation(patient.id);
+      setProposal(next);
+    } catch (err) {
+      setProposalError(err instanceof Error ? err.message : "Failed to generate remediation");
+    } finally {
+      setProposalLoading(false);
+    }
+  }, [patient.id]);
+
+  const canRemediate = reports.length > 0 && !reportsLoading;
 
   return (
     <>
@@ -132,7 +195,45 @@ const PatientDrawer = ({ patient, onClose }: { patient: Patient; onClose: () => 
         </div>
 
         <div className="p-6 border-t border-border">
-          <div className="label-tiny mb-3">Clinical incident reports</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-tiny">Clinical incident reports</div>
+            <button
+              onClick={() => void triggerRemediation()}
+              disabled={!canRemediate || proposalLoading}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-[11px] font-semibold flex items-center gap-1.5 border transition-colors",
+                canRemediate && !proposalLoading
+                  ? "bg-primary text-primary-foreground border-primary hover:bg-primary-glow glow-teal"
+                  : "bg-surface-elevated text-muted-foreground border-border cursor-not-allowed opacity-60",
+              )}
+              title={
+                canRemediate
+                  ? "Send the latest report to Gemini and propose new device thresholds"
+                  : "At least one clinical report is required"
+              }
+            >
+              {proposalLoading ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Drafting…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3" />
+                  Auto-Remediate Thresholds
+                </>
+              )}
+            </button>
+          </div>
+
+          <RemediationPanel
+            loading={proposalLoading}
+            error={proposalError}
+            proposal={proposal}
+            deployed={proposal?.proposal_id === deployedProposalId}
+            onDeploy={() => proposal && setDeployedProposalId(proposal.proposal_id)}
+          />
+
           {reportsLoading && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Clock className="w-3.5 h-3.5 animate-pulse" />
@@ -282,6 +383,151 @@ const EpisodeTimeline = ({ episodes }: { episodes: EpisodeEvent[] }) => {
           <p className="italic mono text-xs text-foreground leading-relaxed">"{hover.reasoning}"</p>
         </div>
       )}
+    </div>
+  );
+};
+
+const RemediationPanel = ({
+  loading,
+  error,
+  proposal,
+  deployed,
+  onDeploy,
+}: {
+  loading: boolean;
+  error: string | null;
+  proposal: RemediationProposal | null;
+  deployed: boolean;
+  onDeploy: () => void;
+}) => {
+  if (loading) {
+    return (
+      <div className="bg-surface-elevated border border-border rounded-md p-4 mb-4 space-y-3 animate-pulse">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+          Gemini is reviewing the latest report and tuning device thresholds…
+        </div>
+        <div className="h-3 bg-muted/40 rounded w-3/4" />
+        <div className="h-3 bg-muted/40 rounded w-2/3" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-12 bg-muted/30 rounded" />
+          <div className="h-12 bg-muted/30 rounded" />
+          <div className="h-12 bg-muted/30 rounded" />
+          <div className="h-12 bg-muted/30 rounded" />
+        </div>
+        <div className="h-16 bg-muted/30 rounded" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-danger/10 border border-danger/40 rounded-md p-3 mb-4 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
+        <div className="text-xs text-danger flex-1">
+          <div className="font-semibold">Remediation pipeline error</div>
+          <div className="text-muted-foreground mt-0.5">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!proposal) return null;
+
+  return (
+    <div className="bg-surface-elevated border border-border rounded-md p-4 mb-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Cpu className="w-3.5 h-3.5 text-primary" />
+            <div className="text-sm font-semibold">Proposed device configuration</div>
+          </div>
+          <div className="mono text-[10px] text-muted-foreground mt-1">
+            {proposal.proposal_id} · severity {proposal.severity_score.toFixed(1)} · confidence{" "}
+            {(proposal.confidence * 100).toFixed(0)}%
+          </div>
+        </div>
+        {deployed ? (
+          <div className="mono text-[10px] tracking-widest px-2 py-0.5 rounded-sm border bg-primary/15 text-primary border-primary/40 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" /> DEPLOYED
+          </div>
+        ) : (
+          <div className="mono text-[10px] tracking-widest px-2 py-0.5 rounded-sm border bg-amber-500/10 text-amber-400 border-amber-500/40">
+            PENDING REVIEW
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs text-foreground leading-relaxed">{proposal.summary}</p>
+
+      <div>
+        <div className="label-tiny mb-2">Threshold adjustments</div>
+        <div className="grid grid-cols-1 gap-2">
+          {proposal.threshold_adjustments.map((adj) => (
+            <ThresholdAdjustmentRow key={adj.parameter} adjustment={adj} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="label-tiny mb-2">New on-device system prompt</div>
+        <pre className="mono text-[11px] leading-relaxed text-foreground whitespace-pre-wrap bg-card border border-border rounded-md p-3">
+          {proposal.new_system_prompt}
+        </pre>
+      </div>
+
+      {proposal.deployment_notes && (
+        <div className="text-[11px] text-muted-foreground italic border-l-2 border-border pl-2">
+          {proposal.deployment_notes}
+        </div>
+      )}
+
+      <button
+        onClick={onDeploy}
+        disabled={deployed}
+        className={cn(
+          "w-full rounded-md py-2 text-xs font-semibold flex items-center justify-center gap-2 border transition-colors",
+          deployed
+            ? "bg-primary/10 text-primary border-primary/40 cursor-default"
+            : "bg-primary text-primary-foreground border-primary hover:bg-primary-glow glow-teal",
+        )}
+      >
+        {deployed ? (
+          <>
+            <CheckCircle className="w-3.5 h-3.5" /> Deployed to edge device
+          </>
+        ) : (
+          <>
+            <Rocket className="w-3.5 h-3.5" /> Approve &amp; deploy to edge device
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
+const ThresholdAdjustmentRow = ({ adjustment }: { adjustment: ThresholdAdjustment }) => {
+  const isDecrease = adjustment.direction === "decrease";
+  const isIncrease = adjustment.direction === "increase";
+  const Arrow = isIncrease ? ArrowUpRight : isDecrease ? ArrowDownRight : ArrowUpRight;
+  const tone = isDecrease
+    ? "text-primary"
+    : isIncrease
+    ? "text-amber-400"
+    : "text-muted-foreground";
+
+  return (
+    <div className="bg-card border border-border rounded-md px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="mono text-[11px] text-foreground truncate">{adjustment.parameter}</div>
+        <div className={cn("flex items-center gap-1 mono text-[11px] font-semibold", tone)}>
+          <span>{adjustment.current_value.toFixed(3)}</span>
+          <Arrow className="w-3 h-3" />
+          <span>{adjustment.proposed_value.toFixed(3)}</span>
+          <span className="text-muted-foreground ml-1">({adjustment.delta >= 0 ? "+" : ""}{adjustment.delta.toFixed(3)})</span>
+        </div>
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{adjustment.rationale}</div>
     </div>
   );
 };

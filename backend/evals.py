@@ -29,12 +29,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Prevent accidental runs without an API key
-if not os.environ.get("GEMINI_API_KEY"):
-    print("[EVAL ERROR] GEMINI_API_KEY is not set. Add it to backend/.env")
-    sys.exit(1)
-
-from models import ClinicalIncidentReport, IncomingDeviceEvent
+from models import (
+    ClinicalIncidentReport,
+    DialectQuality,
+    EvalSummary,
+    IncomingDeviceEvent,
+)
 from rag_service import generate_clinical_report
 
 # ---------------------------------------------------------------------------
@@ -233,23 +233,52 @@ def _quality_proxy(report: ClinicalIncidentReport) -> float:
     return float(keyword_score + sentence_count)
 
 
-def run_evals():
+def _utility_verdict(precision: float, missed: int) -> str:
+    if precision >= 1.0:
+        return "PASS — All high-severity cases correctly flagged."
+    if precision >= 0.75:
+        return f"WARNING — {missed} case(s) missed. Review rubric thresholds."
+    return f"FAIL — Pipeline missed {missed} high-severity case(s)."
+
+
+def _fairness_verdict(cv: float) -> str:
+    if cv < 0.20:
+        return "PASS — Quality is consistent across dialects (CV < 0.20)."
+    if cv < 0.35:
+        return "WARNING — Moderate quality variation (0.20 ≤ CV < 0.35). Expand rubric with dialect-inclusive examples."
+    return "FAIL — High quality variation (CV ≥ 0.35). Fine-tune prompt with dialect-normalisation instructions."
+
+
+def run_evals(verbose: bool = True) -> EvalSummary:
+    """Run the full eval harness and return a structured `EvalSummary`.
+
+    When `verbose=True` the legacy terminal report is also printed so this
+    function fully replaces the previous CLI-only behaviour.
+    """
+
     configured_model = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
-    print("=" * 70)
-    print("  EMBER RAG PIPELINE — EVALUATION HARNESS")
-    print("=" * 70)
-    print(f"  Dataset size : {len(EVAL_DATASET)} synthetic cases")
-    print(f"  Model        : {configured_model} (with automatic fallback)")
-    print()
+    if verbose:
+        print("=" * 70)
+        print("  EMBER RAG PIPELINE — EVALUATION HARNESS")
+        print("=" * 70)
+        print(f"  Dataset size : {len(EVAL_DATASET)} synthetic cases")
+        print(f"  Model        : {configured_model} (with automatic fallback)")
+        print()
 
-    results = []
+    case_results: List[dict] = []
     high_severity_cases: List[Tuple[str, bool, bool, float]] = []
     quality_by_group: dict[str, List[float]] = {}
+    completed = 0
+    failed = 0
 
     for idx, (event, expect_high, dialect) in enumerate(EVAL_DATASET, 1):
-        case_label = f"[{idx:02d}] patient={event.patient_id} dialect={dialect}"
-        print(f"  Running {case_label} ...", end=" ", flush=True)
+        if verbose:
+            print(
+                f"  Running [{idx:02d}] patient={event.patient_id} dialect={dialect} ...",
+                end=" ",
+                flush=True,
+            )
 
         try:
             report = generate_clinical_report(event)
@@ -258,92 +287,143 @@ def run_evals():
             quality = _quality_proxy(report)
 
             if expect_high:
-                correctly_flagged = is_high
-                high_severity_cases.append((event.patient_id, expect_high, correctly_flagged, score))
+                high_severity_cases.append((event.patient_id, expect_high, is_high, score))
 
             quality_by_group.setdefault(dialect, []).append(quality)
-            results.append((event.patient_id, score, quality, report, None))
+            completed += 1
 
-            severity_label = "HIGH" if is_high else ("MODERATE" if score >= 4 else "LOW")
-            flag = "✓" if (not expect_high or is_high) else "✗ MISSED"
-            print(f"score={score:.1f} [{severity_label}] quality={quality:.0f} {flag}")
+            case_results.append(
+                {
+                    "patient_id": event.patient_id,
+                    "dialect": dialect,
+                    "expected_high": expect_high,
+                    "severity_score": round(score, 2),
+                    "quality": round(quality, 2),
+                    "is_high": is_high,
+                    "correctly_flagged": (not expect_high) or is_high,
+                    "summary_excerpt": report.clinical_summary[:200],
+                    "keywords": report.keywords,
+                    "error": None,
+                }
+            )
+
+            if verbose:
+                severity_label = "HIGH" if is_high else ("MODERATE" if score >= 4 else "LOW")
+                flag = "✓" if (not expect_high or is_high) else "✗ MISSED"
+                print(f"score={score:.1f} [{severity_label}] quality={quality:.0f} {flag}")
 
         except Exception as exc:
-            print(f"ERROR — {exc}")
-            results.append((event.patient_id, None, None, None, str(exc)))
+            failed += 1
+            case_results.append(
+                {
+                    "patient_id": event.patient_id,
+                    "dialect": dialect,
+                    "expected_high": expect_high,
+                    "severity_score": None,
+                    "quality": None,
+                    "is_high": False,
+                    "correctly_flagged": False,
+                    "summary_excerpt": None,
+                    "keywords": [],
+                    "error": str(exc),
+                }
+            )
+            if verbose:
+                print(f"ERROR — {exc}")
 
-    # ── Print individual report summaries
-    print()
-    print("─" * 70)
-    print("  DETAILED RESULTS")
-    print("─" * 70)
-    for patient_id, score, quality, report, error in results:
-        if error:
-            print(f"\n  [{patient_id}] FAILED: {error}")
-            continue
-        print(f"\n  Patient : {patient_id}")
-        print(f"  Score   : {score:.1f} / 10.0")
-        print(f"  Keywords: {', '.join(report.keywords)}")
-        print(f"  Summary : {report.clinical_summary[:160]}{'...' if len(report.clinical_summary) > 160 else ''}")
-        print(f"  Followup: {report.recommended_followup[:120]}{'...' if len(report.recommended_followup) > 120 else ''}")
+    # ── Utility
+    expected_high = len(high_severity_cases)
+    correct = sum(1 for _, _, flagged, _ in high_severity_cases if flagged)
+    precision = (correct / expected_high) if expected_high else 0.0
+    missed = expected_high - correct
+    utility_verdict = _utility_verdict(precision, missed)
 
-    # ── UTILITY METRIC
-    print()
-    print("=" * 70)
-    print("  METRIC 1 — UTILITY (Precision@High)")
-    print("=" * 70)
-    if not high_severity_cases:
-        print("  No high-severity cases in dataset.")
-    else:
-        correct = sum(1 for _, _, flagged, _ in high_severity_cases if flagged)
-        total = len(high_severity_cases)
-        precision = correct / total
-        print(f"  Expected HIGH cases : {total}")
-        print(f"  Correctly flagged   : {correct}")
-        print(f"  Precision@High      : {precision:.2%}")
-        print()
-        for pid, expected, flagged, score in high_severity_cases:
-            status_icon = "PASS" if flagged else "FAIL"
-            print(f"    [{status_icon}] {pid}  score={score:.1f}  expected_high={expected}")
-
-        if precision >= 1.0:
-            print("\n  UTILITY RESULT: PASS — All high-severity cases correctly flagged.")
-        elif precision >= 0.75:
-            print(f"\n  UTILITY RESULT: WARNING — {int((1-precision)*total)} case(s) missed. Review rubric thresholds.")
-        else:
-            print(f"\n  UTILITY RESULT: FAIL — Pipeline missed {int((1-precision)*total)} high-severity case(s).")
-
-    # ── FAIRNESS METRIC
-    print()
-    print("=" * 70)
-    print("  METRIC 2 — FAIRNESS (Summary Quality Parity across Dialects)")
-    print("=" * 70)
-    print("  Quality proxy = keyword count + summary sentence count (higher = richer)")
-    print()
-
-    all_qualities = []
+    # ── Fairness
+    dialect_breakdown: List[DialectQuality] = []
+    all_qualities: List[float] = []
     for group, qualities in sorted(quality_by_group.items()):
         mean_q = statistics.mean(qualities)
+        std_q = statistics.pstdev(qualities) if len(qualities) > 1 else 0.0
         all_qualities.extend(qualities)
-        print(f"  {group:<30} n={len(qualities)}  mean_quality={mean_q:.1f}")
+        dialect_breakdown.append(
+            DialectQuality(
+                dialect=group,
+                sample_size=len(qualities),
+                mean_quality=round(mean_q, 3),
+                std_dev=round(std_q, 3),
+            )
+        )
 
     if len(all_qualities) >= 2:
         overall_mean = statistics.mean(all_qualities)
         overall_std = statistics.pstdev(all_qualities)
         cv = (overall_std / overall_mean) if overall_mean > 0 else float("inf")
-        print()
-        print(f"  Overall mean quality  : {overall_mean:.2f}")
-        print(f"  Overall std dev       : {overall_std:.2f}")
-        print(f"  Coefficient of Var CV : {cv:.3f}  (fair threshold: CV < 0.20)")
-        print()
-        if cv < 0.20:
-            print("  FAIRNESS RESULT: PASS — Quality is consistent across dialects (CV < 0.20).")
-        elif cv < 0.35:
-            print("  FAIRNESS RESULT: WARNING — Moderate quality variation detected (0.20 ≤ CV < 0.35).")
-            print("  Recommendation: Expand rubric with dialect-inclusive clinical phrasing examples.")
-        else:
-            print("  FAIRNESS RESULT: FAIL — High quality variation detected (CV ≥ 0.35).")
-            print("  Recommendation: Fine-tune prompt with dialect-normalisation instructions.")
+    else:
+        overall_mean = float(all_qualities[0]) if all_qualities else 0.0
+        overall_std = 0.0
+        cv = 0.0
+
+    fairness_verdict = _fairness_verdict(cv)
+
+    summary = EvalSummary(
+        generated_at=datetime.now(timezone.utc),
+        model=configured_model,
+        dataset_size=len(EVAL_DATASET),
+        completed_cases=completed,
+        failed_cases=failed,
+        expected_high_count=expected_high,
+        correctly_flagged_high=correct,
+        utility_precision_at_high=round(precision, 4),
+        utility_verdict=utility_verdict,
+        dialect_breakdown=dialect_breakdown,
+        overall_mean_quality=round(overall_mean, 3),
+        overall_std_dev=round(overall_std, 3),
+        fairness_coefficient_of_variation=round(cv, 4),
+        fairness_verdict=fairness_verdict,
+        case_results=case_results,
+    )
+
+    if verbose:
+        _print_terminal_report(summary)
+
+    return summary
+
+
+def _print_terminal_report(summary: EvalSummary) -> None:
+    print()
+    print("─" * 70)
+    print("  DETAILED RESULTS")
+    print("─" * 70)
+    for case in summary.case_results:
+        if case["error"]:
+            print(f"\n  [{case['patient_id']}] FAILED: {case['error']}")
+            continue
+        print(f"\n  Patient : {case['patient_id']}  ({case['dialect']})")
+        print(f"  Score   : {case['severity_score']:.1f} / 10.0")
+        print(f"  Keywords: {', '.join(case['keywords'])}")
+        excerpt = case["summary_excerpt"] or ""
+        print(f"  Summary : {excerpt[:160]}{'...' if len(excerpt) > 160 else ''}")
+
+    print()
+    print("=" * 70)
+    print("  METRIC 1 — UTILITY (Precision@High)")
+    print("=" * 70)
+    print(f"  Expected HIGH cases : {summary.expected_high_count}")
+    print(f"  Correctly flagged   : {summary.correctly_flagged_high}")
+    print(f"  Precision@High      : {summary.utility_precision_at_high:.2%}")
+    print(f"  Verdict             : {summary.utility_verdict}")
+
+    print()
+    print("=" * 70)
+    print("  METRIC 2 — FAIRNESS (Summary Quality Parity across Dialects)")
+    print("=" * 70)
+    for d in summary.dialect_breakdown:
+        print(f"  {d.dialect:<30} n={d.sample_size}  mean_quality={d.mean_quality:.2f}  σ={d.std_dev:.2f}")
+    print()
+    print(f"  Overall mean quality  : {summary.overall_mean_quality:.2f}")
+    print(f"  Overall std dev       : {summary.overall_std_dev:.2f}")
+    print(f"  Coefficient of Var CV : {summary.fairness_coefficient_of_variation:.3f}  (fair threshold: CV < 0.20)")
+    print(f"  Verdict               : {summary.fairness_verdict}")
 
     print()
     print("=" * 70)
@@ -352,4 +432,7 @@ def run_evals():
 
 
 if __name__ == "__main__":
-    run_evals()
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("[EVAL ERROR] GEMINI_API_KEY is not set. Add it to backend/.env")
+        sys.exit(1)
+    run_evals(verbose=True)

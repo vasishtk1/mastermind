@@ -67,3 +67,66 @@ export type ClinicalIncidentReport = {
   recommended_followup: string;
   keywords: string[];
 };
+
+export type DialectQuality = {
+  dialect: string;
+  sample_size: number;
+  mean_quality: number;
+  std_dev: number;
+};
+
+export type EvalCaseResult = {
+  patient_id: string;
+  dialect: string;
+  expected_high: boolean;
+  severity_score: number | null;
+  quality: number | null;
+  is_high: boolean;
+  correctly_flagged: boolean;
+  summary_excerpt: string | null;
+  keywords: string[];
+  error: string | null;
+};
+
+export type EvalSummary = {
+  generated_at: string;
+  model: string;
+  dataset_size: number;
+  completed_cases: number;
+  failed_cases: number;
+
+  expected_high_count: number;
+  correctly_flagged_high: number;
+  utility_precision_at_high: number;
+  utility_verdict: string;
+
+  dialect_breakdown: DialectQuality[];
+  overall_mean_quality: number;
+  overall_std_dev: number;
+  fairness_coefficient_of_variation: number;
+  fairness_verdict: string;
+
+  case_results: EvalCaseResult[];
+};
+
+export type ThresholdAdjustment = {
+  parameter: string;
+  current_value: number;
+  proposed_value: number;
+  delta: number;
+  direction: "increase" | "decrease" | "hold";
+  rationale: string;
+};
+
+export type RemediationProposal = {
+  proposal_id: string;
+  patient_id: string;
+  generated_at: string;
+  source_report_timestamp: string;
+  severity_score: number;
+  confidence: number;
+  summary: string;
+  threshold_adjustments: ThresholdAdjustment[];
+  new_system_prompt: string;
+  deployment_notes?: string | null;
+};

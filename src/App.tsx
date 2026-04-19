@@ -7,6 +7,7 @@ import { EmberLayout } from "@/components/ember/EmberLayout";
 import ResearcherIDE from "./pages/ResearcherIDE.tsx";
 import PatientMonitor from "./pages/PatientMonitor.tsx";
 import PatientProfiles from "./pages/PatientProfiles.tsx";
+import ModelAudit from "./pages/ModelAudit.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<ResearcherIDE />} />
             <Route path="/sentinel" element={<PatientMonitor />} />
             <Route path="/patients" element={<PatientProfiles />} />
+            <Route path="/audit" element={<ModelAudit />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

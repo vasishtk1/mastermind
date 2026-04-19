@@ -12,11 +12,19 @@ Design decisions:
 import json
 import os
 import re
+import uuid
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 from google import genai
 from google.genai import types as genai_types
 
-from models import ClinicalIncidentReport, IncomingDeviceEvent
+from models import (
+    ClinicalIncidentReport,
+    IncomingDeviceEvent,
+    RemediationProposal,
+    ThresholdAdjustment,
+)
 
 # ---------------------------------------------------------------------------
 # Hardcoded clinical rubric (mock RAG retrieval context)
@@ -195,3 +203,195 @@ def generate_clinical_report(event: IncomingDeviceEvent) -> ClinicalIncidentRepo
             f"LLM JSON did not match ClinicalIncidentReport schema for patient "
             f"{event.patient_id}. Parsed data: {data}"
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Remediation pipeline
+# ---------------------------------------------------------------------------
+
+# Default acoustic thresholds shipped on every Ember edge device. The
+# remediation prompt asks the model to adjust these in response to a recent
+# incident report. Real deployments would fetch the patient's current
+# per-device config; we use this canonical baseline for the demo.
+DEFAULT_DEVICE_THRESHOLDS: Dict[str, float] = {
+    "mfcc_variance_ceiling": 0.80,
+    "pitch_variance_max": 0.65,
+    "spectral_flux_threshold": 0.55,
+    "spectral_centroid_hz": 2400.0,
+    "zcr_baseline": 0.32,
+    "breath_rate_ceiling": 22.0,
+    "anomaly_sensitivity": 0.60,
+}
+
+DEFAULT_DEVICE_SYSTEM_PROMPT = (
+    "You are Ember, an on-device intervention agent. When acoustic anomaly "
+    "scores exceed configured thresholds, deliver a calm, paced grounding "
+    "intervention (5-4-3-2-1 sensory or paced breathing). Keep responses "
+    "under 25 seconds. Escalate to a human clinician only when the patient "
+    "expresses self-harm intent or fails to stabilise within two cycles."
+)
+
+REMEDIATION_PROMPT_TEMPLATE = """You are Ember's clinical configuration agent. A recent incident report indicates that the on-device intervention agent's current thresholds and prompt may need tuning for this specific patient.
+
+Produce a structured RemediationProposal that adjusts the acoustic anomaly thresholds and rewrites the on-device system prompt to better serve this patient's presentation. Output ONLY valid JSON — no markdown, no prose outside JSON.
+
+=== INCIDENT REPORT ===
+Patient ID:           {patient_id}
+Incident Timestamp:   {incident_timestamp}
+Severity (0-10):      {severity}
+Clinical Summary:     {summary}
+Recommended Followup: {followup}
+Keywords:             {keywords}
+
+=== CURRENT ON-DEVICE THRESHOLDS ===
+{thresholds}
+
+=== CURRENT ON-DEVICE SYSTEM PROMPT ===
+\"\"\"
+{system_prompt}
+\"\"\"
+
+=== TASK ===
+Return a JSON object with EXACTLY these fields:
+{{
+  "summary":             "<2-3 sentence clinical justification for the proposed changes>",
+  "confidence":          <float 0.0-1.0 reflecting how strongly the report supports these changes>,
+  "threshold_adjustments": [
+    {{
+      "parameter":       "<one of: {parameter_names}>",
+      "current_value":   <float, must match the value in CURRENT ON-DEVICE THRESHOLDS>,
+      "proposed_value":  <float>,
+      "delta":           <float, proposed_value - current_value, sign-correct>,
+      "direction":       "<'increase' | 'decrease'>",
+      "rationale":       "<1 sentence linking the change to the incident report>"
+    }}
+    /* 2-4 adjustments, each one targeting a distinct parameter */
+  ],
+  "new_system_prompt":   "<rewritten on-device agent prompt, 2-4 sentences, must reference the patient's specific trigger pattern from the report>",
+  "deployment_notes":    "<1 sentence operational guidance for the clinician approving deployment>"
+}}
+
+Rules:
+1. Propose 2-4 threshold adjustments that are clinically supported by the incident report.
+2. For HIGH severity reports (score >= 7.0), prefer DECREASING thresholds to make the device more sensitive.
+3. For LOW severity reports (score < 4.0), DECREASE thresholds is rare; consider INCREASE to reduce false positives.
+4. `delta` MUST equal proposed_value - current_value exactly. `direction` must match the sign of `delta`.
+5. The `new_system_prompt` MUST be different from the current prompt and reflect specific keywords from the report.
+6. Output ONLY the JSON object. No markdown code fences. No extra text.
+"""
+
+
+def _coerce_adjustment(raw: dict) -> Optional[ThresholdAdjustment]:
+    """Validate a single adjustment dict against the known parameter set."""
+    parameter = raw.get("parameter")
+    if parameter not in DEFAULT_DEVICE_THRESHOLDS:
+        return None
+    try:
+        current = float(raw.get("current_value", DEFAULT_DEVICE_THRESHOLDS[parameter]))
+        proposed = float(raw["proposed_value"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    delta = round(proposed - current, 4)
+    direction = "increase" if delta > 0 else "decrease" if delta < 0 else "hold"
+    rationale = str(raw.get("rationale", "")).strip() or "Model-suggested adjustment."
+
+    return ThresholdAdjustment(
+        parameter=parameter,
+        current_value=round(current, 4),
+        proposed_value=round(proposed, 4),
+        delta=delta,
+        direction=direction,
+        rationale=rationale,
+    )
+
+
+def generate_remediation_profile(
+    report: ClinicalIncidentReport,
+    current_thresholds: Optional[Dict[str, float]] = None,
+    current_system_prompt: Optional[str] = None,
+) -> RemediationProposal:
+    """Generate a configuration patch for the on-device agent from a report.
+
+    Args:
+        report: The incident report driving the remediation.
+        current_thresholds: Patient-specific override of the device baseline.
+        current_system_prompt: Current on-device prompt (defaults to the canonical one).
+
+    Raises:
+        ValueError: If the LLM response cannot be parsed into a valid proposal.
+    """
+    thresholds = dict(current_thresholds or DEFAULT_DEVICE_THRESHOLDS)
+    system_prompt = current_system_prompt or DEFAULT_DEVICE_SYSTEM_PROMPT
+
+    threshold_block = "\n".join(f"  {k}: {v}" for k, v in thresholds.items())
+    parameter_names = ", ".join(thresholds.keys())
+
+    prompt = REMEDIATION_PROMPT_TEMPLATE.format(
+        patient_id=report.patient_id,
+        incident_timestamp=report.incident_timestamp.isoformat(),
+        severity=round(report.estimated_severity_score, 2),
+        summary=report.clinical_summary,
+        followup=report.recommended_followup,
+        keywords=", ".join(report.keywords) or "(none)",
+        thresholds=threshold_block,
+        system_prompt=system_prompt,
+        parameter_names=parameter_names,
+    )
+
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    response = _generate_with_model_fallback(client, prompt)
+    raw_content = response.text or ""
+
+    try:
+        data = json.loads(raw_content)
+    except json.JSONDecodeError:
+        cleaned = _strip_code_fence(raw_content)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"LLM returned unparseable remediation JSON for patient {report.patient_id}. "
+                f"Raw response (first 500 chars): {raw_content[:500]}"
+            ) from exc
+
+    raw_adjustments = data.get("threshold_adjustments") or []
+    adjustments: List[ThresholdAdjustment] = []
+    for raw in raw_adjustments:
+        if not isinstance(raw, dict):
+            continue
+        adjustment = _coerce_adjustment(raw)
+        if adjustment is not None:
+            adjustments.append(adjustment)
+
+    if not adjustments:
+        raise ValueError(
+            f"Remediation proposal for patient {report.patient_id} contained no valid "
+            f"threshold adjustments. Raw payload: {data}"
+        )
+
+    new_prompt = str(data.get("new_system_prompt", "")).strip()
+    if not new_prompt:
+        raise ValueError(
+            f"Remediation proposal for patient {report.patient_id} did not include a new system prompt."
+        )
+
+    try:
+        confidence = float(data.get("confidence", 0.7))
+    except (TypeError, ValueError):
+        confidence = 0.7
+    confidence = max(0.0, min(1.0, confidence))
+
+    return RemediationProposal(
+        proposal_id=f"rem_{uuid.uuid4().hex[:10]}",
+        patient_id=report.patient_id,
+        generated_at=datetime.now(timezone.utc),
+        source_report_timestamp=report.incident_timestamp,
+        severity_score=report.estimated_severity_score,
+        confidence=confidence,
+        summary=str(data.get("summary", "")).strip()
+            or "Proposed device tuning based on the latest incident report.",
+        threshold_adjustments=adjustments,
+        new_system_prompt=new_prompt,
+        deployment_notes=str(data.get("deployment_notes", "")).strip() or None,
+    )
