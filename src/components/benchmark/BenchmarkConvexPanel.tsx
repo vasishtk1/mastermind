@@ -65,7 +65,7 @@ export function BenchmarkConvexPanel({
   const snapshot = useQuery(api.compare.fullSnapshotForPatient, { patientId });
   const recordBenchmark = useMutation(api.benchmarks.record);
   const addJournal = useMutation(api.journals.add);
-  const ingestIncident = useMutation(api.incidents.ingest);
+  const ingestIncident = useMutation(api.mastermindIncidents.ingest);
   const [saving, setSaving] = useState(false);
 
   const onSave = async () => {
@@ -199,7 +199,7 @@ export function BenchmarkConvexPanel({
             <p className="text-xs text-muted-foreground">Loading…</p>
           ) : !snapshot.mastermindIncidents || snapshot.mastermindIncidents.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No device incidents yet. The app calls <code className="text-[10px]">incidents.ingest</code> with{" "}
+              No device incidents yet. The app calls <code className="text-[10px]">mastermindIncidents.ingest</code> with{" "}
               <code className="text-[10px]">biometrics.audio</code> (DoctorPayload).
             </p>
           ) : (

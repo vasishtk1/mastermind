@@ -1,12 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { audioBiometricsValue } from "./audioValidators";
-
-const accent = v.union(
-  v.literal("teal"),
-  v.literal("violet"),
-  v.literal("coral"),
-);
+import { audioBiometricsValue, patientAccent } from "./audioValidators";
 
 /** Clinician browser benchmark sessions + patient journal lines (iOS / web). Shared by web + iOS via Convex. */
 export default defineSchema({
@@ -20,7 +14,7 @@ export default defineSchema({
     dob: v.string(),
     condition: v.string(),
     clinician: v.string(),
-    accent,
+    accent: patientAccent,
     lastActivity: v.optional(v.string()),
     dialectGroup: v.optional(v.string()),
     baselineMfcc: v.optional(v.number()),
@@ -29,12 +23,37 @@ export default defineSchema({
 
   /**
    * Dashboard / triage incidents (rich `IncidentReport` from EmberClinicalContext).
-   * Stored as a versioned JSON blob for forward compatibility with the TypeScript type.
+   * `emberIncidents.upsert` writes `payload`; optional typed fields are for other writers / future use.
    */
   emberIncidents: defineTable({
     incidentId: v.string(),
     patientId: v.string(),
-    payload: v.any(),
+    
+    // Explicit clinical wizard data fields
+    activeAlerts: v.optional(v.array(
+      v.object({
+        name: v.string(),
+        severity: v.string(),
+      })
+    )),
+    groundTruthContext: v.optional(v.string()),
+    metricDeviations: v.optional(v.object({
+      spectralFlux: v.number(),
+      mfccDeviation: v.number(),
+      pitchEscalation: v.number(),
+      breathRate: v.number(),
+      centroid: v.number(),
+      zcrDensity: v.number(),
+    })),
+    clinicalObservation: v.optional(v.string()),
+    directivePayload: v.optional(v.object({
+      pitchVarianceTolerance: v.number(),
+      intervention: v.string(),
+      instructions: v.string(),
+    })),
+
+    // Legacy JSON dump
+    payload: v.optional(v.any()),
     updatedAt: v.number(),
   })
     .index("by_patient_time", ["patientId", "updatedAt"])

@@ -116,23 +116,26 @@ export default function TriageDashboard() {
         </div>
       </header>
 
-      <section className="flex-1 min-h-0 flex flex-col gap-4">
-        <SectionHeader className="shrink-0 text-base">All reports</SectionHeader>
-        <Card className="overflow-hidden flex-1 min-h-[280px] flex flex-col p-0 border border-border/60 shadow-sm">
-          <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] gap-4 px-6 py-3 border-b border-border/60 bg-muted/20 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground items-center">
+      <section className="flex-1 min-h-0 flex flex-col pt-2">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/40 shrink-0">
+          <h2 className="text-sm font-semibold tracking-wide text-foreground uppercase">All reports</h2>
+        </div>
+        
+        <div className="flex-1 min-h-[280px] flex flex-col">
+          <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] gap-4 px-2 py-3 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground items-center">
             <span>What happened</span>
             <span>Patient</span>
             <span>Level</span>
             <span className="text-right pr-2">When</span>
           </div>
-          <div className="divide-y divide-border/60 overflow-y-auto flex-1">
+          <div className="divide-y divide-border/40 overflow-y-auto flex-1 pr-2">
             {sortedIncidents.map((row) => (
               <button
                 key={row.id}
                 type="button"
                 onClick={() => openIncidentWorkspace(row)}
                 className={cn(
-                  "w-full text-left grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] gap-4 px-6 py-4 hover:bg-muted/15 transition-colors group items-center min-h-[4.5rem]",
+                  "w-full text-left grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] gap-4 px-2 py-4 hover:bg-muted/10 transition-colors group items-center min-h-[4.5rem] rounded-md",
                   newIncidentIds.has(row.id) && "bg-primary/5",
                 )}
               >
@@ -163,7 +166,7 @@ export default function TriageDashboard() {
               </button>
             ))}
           </div>
-        </Card>
+        </div>
       </section>
     </div>
   );

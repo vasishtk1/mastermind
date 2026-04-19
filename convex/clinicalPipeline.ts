@@ -102,3 +102,11 @@ export const listDeviceEventsByPatient = query({
       .take(limit);
   },
 });
+
+/** Recent device events across all patients (admin / debug). */
+export const listRecentDeviceEvents = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 50 }) => {
+    return await ctx.db.query("deviceEvents").order("desc").take(limit);
+  },
+});

@@ -1,32 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 
-/** Timeline for one patient: clinician benchmarks vs iOS MasterMind incidents vs journals. */
-export const snapshotForPatient = query({
-  args: { patientId: v.string() },
-  handler: async (ctx, { patientId }) => {
-    const benchmarks = await ctx.db
-      .query("benchmarkRuns")
-      .withIndex("by_patient_time", (q) => q.eq("patientId", patientId))
-      .order("desc")
-      .take(20);
-
-    const journals = await ctx.db
-      .query("journalEntries")
-      .withIndex("by_patient_time", (q) => q.eq("patientId", patientId))
-      .order("desc")
-      .take(20);
-
-    const mastermindIncidents = await ctx.db
-      .query("mastermindIncidents")
-      .withIndex("by_patient_time", (q) => q.eq("patientId", patientId))
-      .order("desc")
-      .take(20);
-
-    return { benchmarks, journals, mastermindIncidents };
-  },
-});
-
 /** Full app snapshot for one patient (roster + pipeline + telemetry tail). */
 export const fullSnapshotForPatient = query({
   args: { patientId: v.string() },

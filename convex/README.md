@@ -11,7 +11,7 @@ Copy `.env.example` to `.env.local` and set `VITE_CONVEX_URL` to the **`.convex.
 
 ## MasterMind `DoctorPayload` → `biometrics.audio`
 
-The iOS app should call the public mutation **`incidents.ingest`** with:
+The iOS app should call the public mutation **`mastermindIncidents.ingest`** with:
 
 ```json
 {
@@ -44,12 +44,12 @@ The iOS app should call the public mutation **`incidents.ingest`** with:
 ### From the CLI (same project)
 
 ```bash
-npx convex run incidents:ingest --arg-file payload.json
+npx convex run mastermindIncidents:ingest --arg-file payload.json
 ```
 
 ### From iOS
 
-Use the Convex client for your stack with the **same deployment URL** as `VITE_CONVEX_URL` in the web app. Call mutation `incidents:ingest` with the JSON above.
+Use the Convex client for your stack with the **same deployment URL** as `VITE_CONVEX_URL` in the web app. Call mutation `mastermindIncidents:ingest` with the JSON above.
 
 ## Tables (application data model)
 
@@ -73,19 +73,18 @@ Use the Convex client for your stack with the **same deployment URL** as `VITE_C
 |--------|-------------------|
 | `patients` | `upsert`, `list`, `getByPatientId` |
 | `emberIncidents` | `upsert`, `listByPatient`, `listRecent` |
-| `clinicalPipeline` | `ingestDeviceEvent`, `ingestClinicalReport`, `ingestEventWithReport`, `listClinicalReportsByPatient`, `listDeviceEventsByPatient` |
+| `clinicalPipeline` | `ingestDeviceEvent`, `ingestClinicalReport`, `ingestEventWithReport`, `listClinicalReportsByPatient`, `listDeviceEventsByPatient`, `listRecentDeviceEvents` |
 | `evals` | `saveRun`, `latest`, `listRecent` |
 | `telemetry` | `ingestBatch`, `listByPatient` |
 | `directives` | `record`, `listByPatient` |
 | `remediation` | `saveProposal`, `latestForPatient` |
-| `incidents` | `ingest` (MasterMind) — unchanged |
+| `mastermindIncidents` | `ingest`, `listByPatient`, `listRecent` (iOS `DoctorPayload` → `mastermindIncidents` table) |
 | `benchmarks` | `record`, `listByPatient` |
 | `journals` | `add`, `listByPatient` |
 
 ## Queries
 
-- **`compare.snapshotForPatient`** — benchmarks + iOS incidents + journals for a patient.
-- **`compare.fullSnapshotForPatient`** — same plus patient row, ember incidents, clinical reports, device events, directives, telemetry tail.
+- **`compare.fullSnapshotForPatient`** — patient row, benchmarks, journals, MasterMind incidents, ember incidents, clinical reports, device events, directives, telemetry batches.
 - **`validation.deviceGroundingStats`** — aggregates over recent MasterMind incidents (Model Audit page).
 
 ## Local dev

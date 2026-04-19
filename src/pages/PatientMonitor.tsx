@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { Line } from "react-chartjs-2";
 import {
@@ -12,9 +13,9 @@ import {
   Tooltip as CTooltip,
   Legend,
 } from "chart.js";
-import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap } from "lucide-react";
+import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap, ChevronRight } from "lucide-react";
 import { CountUp } from "@/components/ember/CountUp";
-import { BenchmarkConvexPanel } from "@/components/benchmark/BenchmarkConvexPanel";
+
 import { PATIENTS, PROFILES } from "@/lib/ember-mock";
 import { useEmberData } from "@/context/EmberClinicalContext";
 import type { Patient } from "@/lib/ember-types";
@@ -88,6 +89,7 @@ const DISPLAY_BLENDSHAPES = [
 ] as const;
 
 const PatientMonitor = () => {
+  const navigate = useNavigate();
   const { patients, lastViewedPatientId, setLastViewedPatientId } = useEmberData();
   const convexRoster = useQuery(
     api.patients.list,
@@ -554,26 +556,14 @@ const PatientMonitor = () => {
         </div>
       </div>
 
-      {convexUrl ? (
-        <div className="px-8 pb-6 shrink-0 max-w-[1600px] w-full mx-auto">
-          <BenchmarkConvexPanel
-            patientId={patient.id}
-            patientName={patient.name}
-            sessionSeconds={uptime}
-            metrics={benchmarkMetrics}
-            mastermindAudioSnapshot={mastermindAudioSnapshot}
-            geminiSnippet={lastGemini}
-            audioActive={audioHasSignal}
-          />
-        </div>
-      ) : (
-        <div className="px-8 pb-4 text-xs text-muted-foreground max-w-3xl">
-          Connect Convex to save benchmarks and compare with patient journals: run{" "}
-          <code className="text-[10px] bg-muted px-1 rounded">npx convex dev</code> — this sets{" "}
-          <code className="text-[10px] bg-muted px-1 rounded">VITE_CONVEX_URL</code> in{" "}
-          <code className="text-[10px] bg-muted px-1 rounded">.env.local</code>. Use the same URL in the iOS app.
-        </div>
-      )}
+      <div className="px-8 pb-6 pt-4 shrink-0 flex justify-end border-t border-border mt-2">
+        <button
+          onClick={() => navigate(`/patients/${patient.id}/profile`)}
+          className="bg-primary text-primary-foreground hover:bg-primary-glow rounded-md px-8 py-3 text-sm font-bold flex items-center gap-2 glow-teal transition-all shadow-md"
+        >
+          Save Benchmarking <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* ── Trigger overlay ── */}
       {triggered && reasoning && (

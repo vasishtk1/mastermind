@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { audioBiometricsValue } from "./audioValidators";
 
-/** iOS / MasterMind: store one incident row (DoctorPayload biometrics.audio). */
+/** iOS MasterMind: store one incident row (DoctorPayload biometrics.audio). */
 export const ingest = mutation({
   args: {
     patientId: v.string(),

@@ -1,11 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-
-const accent = v.union(
-  v.literal("teal"),
-  v.literal("violet"),
-  v.literal("coral"),
-);
+import { patientAccent } from "./audioValidators";
 
 export const upsert = mutation({
   args: {
@@ -15,7 +10,7 @@ export const upsert = mutation({
     dob: v.string(),
     condition: v.string(),
     clinician: v.string(),
-    accent,
+    accent: patientAccent,
     lastActivity: v.optional(v.string()),
     dialectGroup: v.optional(v.string()),
     baselineMfcc: v.optional(v.number()),

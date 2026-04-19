@@ -1,5 +1,12 @@
 import { v } from "convex/values";
 
+/** Patient card accent (shared by `schema` + `patients` mutation). */
+export const patientAccent = v.union(
+  v.literal("teal"),
+  v.literal("violet"),
+  v.literal("coral"),
+);
+
 /** Single MasterMind / DoctorPayload biometrics.audio block (16 kHz pipeline). */
 export const audioBiometricsValue = v.object({
   breath_rate: v.number(),
