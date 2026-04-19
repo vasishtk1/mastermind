@@ -22,6 +22,7 @@ from google.genai import types as genai_types
 from models import (
     ClinicalIncidentReport,
     IncomingDeviceEvent,
+    MonitorResult,
     RemediationProposal,
     ThresholdAdjustment,
 )
@@ -203,6 +204,78 @@ def generate_clinical_report(event: IncomingDeviceEvent) -> ClinicalIncidentRepo
             f"LLM JSON did not match ClinicalIncidentReport schema for patient "
             f"{event.patient_id}. Parsed data: {data}"
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Real-time acoustic monitor
+# ---------------------------------------------------------------------------
+
+MONITOR_SYSTEM_PROMPT = (
+    "You are an acoustic biomarker safety monitor for Ember, a real-time psychiatric "
+    "monitoring platform. Analyse the provided vocal prosody metrics and decide whether "
+    "they represent an acute distress episode requiring clinical intervention. "
+    "Respond ONLY with a valid JSON object — no markdown, no prose outside the JSON."
+)
+
+MONITOR_PROMPT_TEMPLATE = """Real-time acoustic snapshot (browser microphone):
+  RMS level:        {rms_db:.1f} dBFS  (reference: quiet room ≈ -50, normal speech ≈ -25, elevated ≈ -15, loud ≈ -10)
+  Spectral flux:    {spectral_flux:.3f}  (0.0 = static environment, 1.0 = rapid spectral change / hyperventilation)
+  Zero-crossing rate: {zcr:.0f} Hz
+  Fundamental freq: {f0_hz:.0f} Hz  ({voiced_label})
+  Spectral centroid:{spectral_centroid:.0f} Hz
+
+Distress thresholds for PTSD / anxiety:
+  - RMS > -20 dBFS      → agitated/elevated vocal production
+  - Spectral flux > 0.5 → rapid environmental change or breathing disruption
+  - ZCR > 5000 Hz with elevated RMS → stress vocalisation signature
+  - F0 > 220 Hz (female) or > 160 Hz (male) → pitch escalation
+
+Trigger rule: fire ONLY if ≥ 2 indicators are simultaneously elevated. Default to triggered=false.
+
+Respond with EXACTLY this JSON (no other text):
+{{"triggered": <true|false>, "severity_score": <0.0-1.0>, "reasoning": "<≤120-char clinical observation>"}}
+"""
+
+
+def analyze_acoustic_snapshot(
+    rms_db: float,
+    spectral_flux: float,
+    zcr: float,
+    f0_hz: float,
+    spectral_centroid: float,
+) -> MonitorResult:
+    """Fast Gemini call: acoustic snapshot → triggered / severity / reasoning.
+
+    Runs synchronously — callers should use run_in_executor to stay non-blocking.
+    Returns a safe default (triggered=False) on any LLM or parse failure.
+    """
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    voiced_label = "voiced speech detected" if f0_hz > 0 else "unvoiced / ambient noise"
+
+    prompt = MONITOR_SYSTEM_PROMPT + "\n\n" + MONITOR_PROMPT_TEMPLATE.format(
+        rms_db=rms_db,
+        spectral_flux=spectral_flux,
+        zcr=zcr,
+        f0_hz=f0_hz,
+        voiced_label=voiced_label,
+        spectral_centroid=spectral_centroid,
+    )
+
+    try:
+        response = _generate_with_model_fallback(client, prompt)
+        raw = _strip_code_fence(response.text or "")
+        data = json.loads(raw)
+        return MonitorResult(
+            triggered=bool(data.get("triggered", False)),
+            severity_score=min(1.0, max(0.0, float(data.get("severity_score", 0.0)))),
+            reasoning=str(data.get("reasoning", "Acoustic environment nominal."))[:200],
+        )
+    except Exception:
+        return MonitorResult(
+            triggered=False,
+            severity_score=0.0,
+            reasoning="Monitor nominal — inference unavailable.",
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -26,8 +26,10 @@ import type { EvalCaseResult, EvalSummary } from "@/lib/ember-types";
 
 const API_BASE = "http://localhost:8000";
 
-async function fetchLatestEvals(): Promise<EvalSummary> {
+async function fetchLatestEvals(): Promise<EvalSummary | null> {
   const res = await fetch(`${API_BASE}/api/evals/latest`);
+  // 404 means no runs have been recorded yet — not a real error.
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
@@ -68,12 +70,20 @@ const ModelAudit = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // true when the DB exists but simply has no runs yet
+  const [noRunsYet, setNoRunsYet] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setNoRunsYet(false);
     try {
-      setData(await fetchLatestEvals());
+      const result = await fetchLatestEvals();
+      if (result === null) {
+        setNoRunsYet(true);
+      } else {
+        setData(result);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -84,6 +94,7 @@ const ModelAudit = () => {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
+    setNoRunsYet(false);
     try {
       setData(await triggerEvalRun());
     } catch (err) {
@@ -125,6 +136,32 @@ const ModelAudit = () => {
 
       <div className="flex-1 overflow-y-auto p-8 space-y-6">
         {loading && !data && <LoadingSkeleton />}
+
+        {!loading && noRunsYet && (
+          <div className="panel p-8 flex flex-col items-center justify-center gap-4 text-center border-border">
+            <ShieldCheck className="w-10 h-10 text-muted-foreground/40" />
+            <div>
+              <div className="text-sm font-semibold text-foreground">No evaluation runs recorded yet</div>
+              <div className="text-xs text-muted-foreground mt-1 max-w-sm">
+                Click <span className="text-primary font-semibold">Re-run eval harness</span> in the top-right to
+                execute the 10-case synthetic test suite. Results will be persisted to SQLite and displayed here.
+                Expect ~30–60 seconds for the Gemini calls to complete.
+              </div>
+            </div>
+            <button
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className={cn(
+                "rounded-md px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border transition-colors",
+                "bg-primary text-primary-foreground border-primary hover:bg-primary-glow glow-teal",
+                refreshing && "opacity-60 cursor-not-allowed",
+              )}
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+              {refreshing ? "Running harness…" : "Run first evaluation"}
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="panel p-4 flex items-start gap-3 border-danger/40">

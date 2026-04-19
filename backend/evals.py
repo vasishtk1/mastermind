@@ -16,12 +16,15 @@ Usage
     cd backend
     pip install -r requirements.txt
     cp .env.example .env   # add your GEMINI_API_KEY
-    python3 evals.py
+    python3 evals.py            # run harness + persist results to ember.db
+    python3 evals.py --no-db    # run harness only, skip DB persistence
 """
 
+import asyncio
 import os
 import sys
 import statistics
+import uuid
 from datetime import datetime, timezone
 from typing import List, Tuple
 
@@ -431,8 +434,70 @@ def _print_terminal_report(summary: EvalSummary) -> None:
     print("=" * 70)
 
 
+async def save_eval_to_db(summary: EvalSummary) -> None:
+    """Persist an EvalSummary to the SQLite database.
+
+    Called by the FastAPI endpoint after a successful run.  Can also be
+    invoked directly from the CLI entry-point via ``asyncio.run()``.
+
+    Imports are deferred so the module remains importable without SQLAlchemy
+    (e.g. if someone imports only the EVAL_DATASET for unit tests).
+    """
+    from database import AsyncSessionLocal
+    from db_models import EvalCaseResult as DbEvalCaseResult
+    from db_models import EvalRun as DbEvalRun
+
+    run_id = str(uuid.uuid4())
+
+    async with AsyncSessionLocal() as session:
+        try:
+            db_run = DbEvalRun(
+                id=run_id,
+                timestamp=summary.generated_at,
+                model=summary.model,
+                utility_score=summary.utility_precision_at_high,
+                fairness_cv=summary.fairness_coefficient_of_variation,
+                total_cases=summary.dataset_size,
+                failed_cases=summary.failed_cases,
+                summary_json=summary.model_dump(mode="json"),
+            )
+            session.add(db_run)
+            await session.flush()
+
+            for case in summary.case_results:
+                session.add(
+                    DbEvalCaseResult(
+                        id=str(uuid.uuid4()),
+                        run_id=run_id,
+                        patient_id=case.get("patient_id", ""),
+                        dialect_group=case.get("dialect", ""),
+                        expected_severity=bool(case.get("expected_high", False)),
+                        actual_score=case.get("severity_score"),
+                        passed=bool(case.get("correctly_flagged", False)),
+                    )
+                )
+
+            await session.commit()
+            print(f"  [DB] EvalRun saved (id={run_id}, cases={len(summary.case_results)})")
+        except Exception as exc:
+            await session.rollback()
+            print(f"  [DB ERROR] Could not persist eval run: {exc}")
+            raise
+
+
 if __name__ == "__main__":
     if not os.environ.get("GEMINI_API_KEY"):
         print("[EVAL ERROR] GEMINI_API_KEY is not set. Add it to backend/.env")
         sys.exit(1)
-    run_evals(verbose=True)
+
+    _persist = "--no-db" not in sys.argv
+    summary = run_evals(verbose=True)
+
+    if _persist:
+        try:
+            asyncio.run(save_eval_to_db(summary))
+        except Exception as exc:
+            print(f"\n[DB ERROR] Results not persisted: {exc}")
+            print("  Run with --no-db to suppress DB persistence.")
+    else:
+        print("\n  [DB] Skipped (--no-db flag set).")
