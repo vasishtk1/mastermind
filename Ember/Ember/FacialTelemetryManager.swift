@@ -7,6 +7,7 @@ final class FacialTelemetryManager: NSObject, ARSessionDelegate {
     private let session = ARSession()
     private let queue = DispatchQueue(label: "com.ember.telemetry.face", qos: .userInitiated)
     private var onSample: (@Sendable (ARFaceTelemetrySample) -> Void)?
+    var arSession: ARSession { session }
 
     func start(onSample: @escaping @Sendable (ARFaceTelemetrySample) -> Void) {
         guard ARFaceTrackingConfiguration.isSupported else { return }

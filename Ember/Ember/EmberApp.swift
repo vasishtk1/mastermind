@@ -13,11 +13,31 @@ import SwiftUI
 @main
 struct EmberApp: App {
     @StateObject private var env = AppEnvironment()
+    @AppStorage("mastermind_has_seen_onboarding") private var hasSeenOnboarding = false
 
     var body: some Scene {
         WindowGroup {
-            MainTabView(env: env)
-                .preferredColorScheme(.dark)
+            MasterMindTabView(env: env)
+                .preferredColorScheme(.light)
+                .fullScreenCover(isPresented: onboardingBinding) {
+                    MasterMindOnboardingView {
+                        hasSeenOnboarding = true
+                    }
+                }
+                .sheet(isPresented: $env.showActiveAssessment) {
+                    ActiveAssessmentView(env: env)
+                }
         }
+    }
+
+    private var onboardingBinding: Binding<Bool> {
+        Binding(
+            get: { !hasSeenOnboarding },
+            set: { newValue in
+                if !newValue {
+                    hasSeenOnboarding = true
+                }
+            }
+        )
     }
 }

@@ -1,11 +1,18 @@
 import Foundation
 import SwiftUI
+import ARKit
 
 @MainActor
 final class TelemetryOrchestrator: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var latestLiveJSON = "{}"
     @Published private(set) var lastUploadStatus = "Idle"
+    @Published private(set) var latestFaceSample: ARFaceTelemetrySample?
+    @Published private(set) var latestMotionSample: MotionTelemetrySample?
+    @Published private(set) var latestVocalSample: VocalProsodyTelemetrySample?
+    @Published private(set) var latestTouchSample: TouchTelemetrySample?
+    @Published private(set) var latestEnvironmentSample: SensoryEnvironmentTelemetrySample?
+    @Published private(set) var telemetryUptimeSec: TimeInterval = 0
 
     private let faceManager = FacialTelemetryManager()
     private let motionManager = MotionTelemetryManager()
@@ -20,6 +27,8 @@ final class TelemetryOrchestrator: ObservableObject {
     private var latestVocal: VocalProsodyTelemetrySample?
     private var latestTouch: TouchTelemetrySample?
     private var latestEnvironment: SensoryEnvironmentTelemetrySample?
+    private var telemetryStartTime: Date?
+    private var uptimeTask: Task<Void, Never>?
 
     func start(baseURL: URL) {
         guard !isRunning else { return }
@@ -36,6 +45,7 @@ final class TelemetryOrchestrator: ObservableObject {
             Task { [weak self] in await self?.buffer?.append(face: sample) }
             Task { @MainActor in
                 self.latestFace = sample
+                self.latestFaceSample = sample
                 self.updateLiveJSON()
             }
         }
@@ -45,6 +55,7 @@ final class TelemetryOrchestrator: ObservableObject {
             Task { [weak self] in await self?.buffer?.append(motion: sample) }
             Task { @MainActor in
                 self.latestMotion = sample
+                self.latestMotionSample = sample
                 self.updateLiveJSON()
             }
         }
@@ -58,6 +69,7 @@ final class TelemetryOrchestrator: ObservableObject {
                 }
                 Task { @MainActor in
                     self.latestVocal = sample
+                    self.latestVocalSample = sample
                     self.updateLiveJSON()
                 }
             }
@@ -70,10 +82,23 @@ final class TelemetryOrchestrator: ObservableObject {
             Task { [weak self] in await self?.buffer?.append(environment: sample) }
             Task { @MainActor in
                 self.latestEnvironment = sample
+                self.latestEnvironmentSample = sample
                 self.updateLiveJSON()
             }
         }
 
+        telemetryStartTime = Date()
+        telemetryUptimeSec = 0
+        uptimeTask?.cancel()
+        uptimeTask = Task { [weak self] in
+            while !(Task.isCancelled) {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await MainActor.run {
+                    guard let self, let start = self.telemetryStartTime else { return }
+                    self.telemetryUptimeSec = Date().timeIntervalSince(start)
+                }
+            }
+        }
         isRunning = true
     }
 
@@ -85,6 +110,10 @@ final class TelemetryOrchestrator: ObservableObject {
         sensoryManager.stop()
         Task { await buffer?.stop() }
         buffer = nil
+        uptimeTask?.cancel()
+        uptimeTask = nil
+        telemetryStartTime = nil
+        telemetryUptimeSec = 0
         isRunning = false
     }
 
@@ -92,7 +121,28 @@ final class TelemetryOrchestrator: ObservableObject {
         guard isRunning else { return }
         Task { [weak self] in await self?.buffer?.append(touch: sample) }
         latestTouch = sample
+        latestTouchSample = sample
         updateLiveJSON()
+    }
+
+    var tremorIndex: Double {
+        guard let m = latestMotionSample else { return 0 }
+        let x = m.userAccelerationX
+        let y = m.userAccelerationY
+        let z = m.userAccelerationZ
+        return sqrt(x * x + y * y + z * z)
+    }
+
+    var monitoringUptimeText: String {
+        let total = Int(telemetryUptimeSec.rounded(.down))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+
+    var faceSessionForPreview: ARSession {
+        faceManager.arSession
     }
 
     private func updateLiveJSON() {

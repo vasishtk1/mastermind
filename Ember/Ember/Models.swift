@@ -49,3 +49,18 @@ struct InterventionRunResult: Sendable {
     var cloudHandoff: Bool
     var crisisEvent: IncomingDeviceEvent?
 }
+
+// MARK: - Escalation protocol
+
+struct ActiveAssessmentInferenceResult: Sendable {
+    var groundingAction: String
+    var modelResponse: String
+    var totalTimeMs: Double
+}
+
+struct ClinicianDirective: Codable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var details: String
+    var createdAt: String?
+}

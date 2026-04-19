@@ -388,6 +388,107 @@ final class CactusManager: ObservableObject {
         return parsed
     }
 
+    /// Escalation protocol path: combines typed self-report with 5s facial stress aggregate and asks Gemma
+    /// for one immediate grounding activity plus concise de-escalation guidance.
+    func runInterventionAgent(
+        textInput: String,
+        facialStressScore: Double,
+        patientId: String
+    ) async throws -> ActiveAssessmentInferenceResult {
+        Self.enforceZeroCloudInferencePolicy()
+        guard let model = gemmaModel else {
+            throw NSError(domain: "Ember", code: 3, userInfo: [NSLocalizedDescriptionKey: "Gemma model not initialized"])
+        }
+
+        mode = .interveningGemma4
+        defer { mode = .listeningParakeet }
+
+        let stressBand: String = {
+            switch facialStressScore {
+            case ..<0.25: return "low"
+            case ..<0.55: return "moderate"
+            case ..<0.8: return "high"
+            default: return "very_high"
+            }
+        }()
+
+        let systemPrompt = """
+        You are Ember, an on-device de-escalation assistant.
+        Use both the user's typed report and observed facial stress to recommend one immediate grounding activity.
+        Output format:
+        1) First line starts with `GROUNDING_ACTIVITY:` followed by a short activity label.
+        2) Then 2-4 short supportive sentences.
+        Be calm, practical, and avoid diagnosis.
+        """
+
+        let userPrompt = """
+        Patient ID: \(patientId)
+        Typed self-report: \(textInput)
+        Facial stress score (0 to 1): \(String(format: "%.3f", facialStressScore))
+        Facial stress band: \(stressBand)
+
+        Choose a grounding activity tailored to this context and explain how to start immediately.
+        """
+
+        let messagesJSON = try Self.encodeJSON([
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": userPrompt],
+        ])
+
+        let optionsJSON = """
+        {
+          "auto_handoff": false,
+          "telemetry_enabled": false,
+          "max_tokens": 300,
+          "temperature": 0.25,
+          "top_p": 0.9
+        }
+        """
+
+        let bufferSize = 1024 * 1024
+        let responseBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: bufferSize)
+        responseBuffer.initialize(repeating: 0, count: bufferSize)
+        defer { responseBuffer.deallocate() }
+
+        let rc: Int32 = await withCheckedContinuation { continuation in
+            interventionQueue.async {
+                let written: Int32 = messagesJSON.withCString { m in
+                    optionsJSON.withCString { o in
+                        cactus_complete(
+                            model,
+                            m,
+                            responseBuffer,
+                            bufferSize,
+                            o,
+                            "[]",
+                            nil,
+                            nil,
+                            nil,
+                            0
+                        )
+                    }
+                }
+                continuation.resume(returning: written)
+            }
+        }
+        if rc < 0 {
+            let err = Self.lastCactusErrorMessage()
+            throw NSError(domain: "Ember", code: 4, userInfo: [NSLocalizedDescriptionKey: err])
+        }
+
+        let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
+        let response = Self.extractResponseText(fromRawJSON: raw).trimmingCharacters(in: .whitespacesAndNewlines)
+        let grounding = Self.extractGroundingAction(from: response)
+        let totalMs = Self.extractGemmaTelemetry(fromRawJSON: raw).totalTimeMs ?? 0
+        lastLatencyMs = totalMs
+
+        return ActiveAssessmentInferenceResult(
+            groundingAction: grounding,
+            modelResponse: response,
+            totalTimeMs: totalMs
+        )
+    }
+
     // MARK: - Audio probe (FunctionGemma + PCM)
 
     /// Runs a short completion with microphone PCM attached; logs the **full** engine JSON to stdout and the system log.
@@ -808,6 +909,20 @@ final class CactusManager: ObservableObject {
             return ""
         }
         return (root["response"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private static func extractGroundingAction(from response: String) -> String {
+        let lines = response.components(separatedBy: .newlines)
+        if let tagged = lines.first(where: { $0.uppercased().contains("GROUNDING_ACTIVITY:") }) {
+            if let range = tagged.range(of: "GROUNDING_ACTIVITY:", options: .caseInsensitive) {
+                let raw = tagged[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !raw.isEmpty { return raw }
+            }
+        }
+        if let first = lines.first?.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty {
+            return first
+        }
+        return "box breathing"
     }
 
     private static func extractTranscriptionText(fromRawJSON rawJSON: String) -> String {

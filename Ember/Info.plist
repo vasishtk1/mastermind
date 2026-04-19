@@ -33,6 +33,8 @@
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ember analyzes microphone audio on-device to detect distress and support you during difficult moments.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We use your camera and microphone to track distress signals </string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

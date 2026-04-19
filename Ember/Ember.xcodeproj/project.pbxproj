@@ -31,6 +31,21 @@
 		D1200000000000000000000B /* SensoryEnvironmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000B /* SensoryEnvironmentManager.swift */; };
 		D1200000000000000000000C /* TouchTelemetryCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000C /* TouchTelemetryCaptureView.swift */; };
 		D1200000000000000000000D /* TelemetryOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000D /* TelemetryOrchestrator.swift */; };
+		D1200000000000000000000E /* TelemetryMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000E /* TelemetryMonitorView.swift */; };
+		D1200000000000000000000F /* AudioTripwireManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000000F /* AudioTripwireManager.swift */; };
+		D12000000000000000000010 /* ActiveAssessmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000010 /* ActiveAssessmentView.swift */; };
+		D12000000000000000000011 /* EmberNotificationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000011 /* EmberNotificationRouter.swift */; };
+		D12000000000000000000012 /* JournalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000012 /* JournalModels.swift */; };
+		D12000000000000000000013 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000013 /* JournalStore.swift */; };
+		D12000000000000000000014 /* VideoJournalRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000014 /* VideoJournalRecorderView.swift */; };
+		D12000000000000000000015 /* JournalTelemetryAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000015 /* JournalTelemetryAnalyzer.swift */; };
+		D12000000000000000000016 /* JournalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000016 /* JournalCaptureView.swift */; };
+		D12000000000000000000017 /* JournalDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000017 /* JournalDetailView.swift */; };
+		D12000000000000000000018 /* JournalHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000018 /* JournalHomeView.swift */; };
+		D12000000000000000000019 /* MasterMindTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11000000000000000000019 /* MasterMindTabView.swift */; };
+		D1200000000000000000001A /* JournalLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001A /* JournalLibraryView.swift */; };
+		D1200000000000000000001B /* MasterMindSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001B /* MasterMindSettingsView.swift */; };
+		D1200000000000000000001C /* MasterMindOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001C /* MasterMindOnboardingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +76,21 @@
 		D1100000000000000000000B /* SensoryEnvironmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensoryEnvironmentManager.swift; sourceTree = "<group>"; };
 		D1100000000000000000000C /* TouchTelemetryCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchTelemetryCaptureView.swift; sourceTree = "<group>"; };
 		D1100000000000000000000D /* TelemetryOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryOrchestrator.swift; sourceTree = "<group>"; };
+		D1100000000000000000000E /* TelemetryMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryMonitorView.swift; sourceTree = "<group>"; };
+		D1100000000000000000000F /* AudioTripwireManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTripwireManager.swift; sourceTree = "<group>"; };
+		D11000000000000000000010 /* ActiveAssessmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveAssessmentView.swift; sourceTree = "<group>"; };
+		D11000000000000000000011 /* EmberNotificationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberNotificationRouter.swift; sourceTree = "<group>"; };
+		D11000000000000000000012 /* JournalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalModels.swift; sourceTree = "<group>"; };
+		D11000000000000000000013 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
+		D11000000000000000000014 /* VideoJournalRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoJournalRecorderView.swift; sourceTree = "<group>"; };
+		D11000000000000000000015 /* JournalTelemetryAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalTelemetryAnalyzer.swift; sourceTree = "<group>"; };
+		D11000000000000000000016 /* JournalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalCaptureView.swift; sourceTree = "<group>"; };
+		D11000000000000000000017 /* JournalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalDetailView.swift; sourceTree = "<group>"; };
+		D11000000000000000000018 /* JournalHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalHomeView.swift; sourceTree = "<group>"; };
+		D11000000000000000000019 /* MasterMindTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindTabView.swift; sourceTree = "<group>"; };
+		D1100000000000000000001A /* JournalLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalLibraryView.swift; sourceTree = "<group>"; };
+		D1100000000000000000001B /* MasterMindSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindSettingsView.swift; sourceTree = "<group>"; };
+		D1100000000000000000001C /* MasterMindOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindOnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +151,21 @@
 				D1100000000000000000000B /* SensoryEnvironmentManager.swift */,
 				D1100000000000000000000C /* TouchTelemetryCaptureView.swift */,
 				D1100000000000000000000D /* TelemetryOrchestrator.swift */,
+				D1100000000000000000000E /* TelemetryMonitorView.swift */,
+				D1100000000000000000000F /* AudioTripwireManager.swift */,
+				D11000000000000000000010 /* ActiveAssessmentView.swift */,
+				D11000000000000000000011 /* EmberNotificationRouter.swift */,
+				D11000000000000000000012 /* JournalModels.swift */,
+				D11000000000000000000013 /* JournalStore.swift */,
+				D11000000000000000000014 /* VideoJournalRecorderView.swift */,
+				D11000000000000000000015 /* JournalTelemetryAnalyzer.swift */,
+				D11000000000000000000016 /* JournalCaptureView.swift */,
+				D11000000000000000000017 /* JournalDetailView.swift */,
+				D11000000000000000000018 /* JournalHomeView.swift */,
+				D11000000000000000000019 /* MasterMindTabView.swift */,
+				D1100000000000000000001A /* JournalLibraryView.swift */,
+				D1100000000000000000001B /* MasterMindSettingsView.swift */,
+				D1100000000000000000001C /* MasterMindOnboardingView.swift */,
 			);
 			path = Ember;
 			sourceTree = "<group>";
@@ -224,6 +269,21 @@
 				D1200000000000000000000B /* SensoryEnvironmentManager.swift in Sources */,
 				D1200000000000000000000C /* TouchTelemetryCaptureView.swift in Sources */,
 				D1200000000000000000000D /* TelemetryOrchestrator.swift in Sources */,
+				D1200000000000000000000E /* TelemetryMonitorView.swift in Sources */,
+				D1200000000000000000000F /* AudioTripwireManager.swift in Sources */,
+				D12000000000000000000010 /* ActiveAssessmentView.swift in Sources */,
+				D12000000000000000000011 /* EmberNotificationRouter.swift in Sources */,
+				D12000000000000000000012 /* JournalModels.swift in Sources */,
+				D12000000000000000000013 /* JournalStore.swift in Sources */,
+				D12000000000000000000014 /* VideoJournalRecorderView.swift in Sources */,
+				D12000000000000000000015 /* JournalTelemetryAnalyzer.swift in Sources */,
+				D12000000000000000000016 /* JournalCaptureView.swift in Sources */,
+				D12000000000000000000017 /* JournalDetailView.swift in Sources */,
+				D12000000000000000000018 /* JournalHomeView.swift in Sources */,
+				D12000000000000000000019 /* MasterMindTabView.swift in Sources */,
+				D1200000000000000000001A /* JournalLibraryView.swift in Sources */,
+				D1200000000000000000001B /* MasterMindSettingsView.swift in Sources */,
+				D1200000000000000000001C /* MasterMindOnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

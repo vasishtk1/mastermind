@@ -9,6 +9,7 @@ struct DashboardView: View {
 
     @State private var isRunningDemo = false
     @State private var statusLine: String = ""
+    @State private var showTelemetryMonitor = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,9 @@ struct DashboardView: View {
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(EmberTheme.textPrimary)
                 }
+            }
+            .navigationDestination(isPresented: $showTelemetryMonitor) {
+                TelemetryMonitorView(env: env)
             }
         }
         .tint(EmberTheme.accent)
@@ -174,15 +178,21 @@ struct DashboardView: View {
     private var telemetryCard: some View {
         EmberCard {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Exhaustive telemetry pipeline")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(EmberTheme.textSecondary)
+                HStack {
+                    Text("Exhaustive telemetry pipeline")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(EmberTheme.textSecondary)
+                    Spacer()
+                    Text("Uptime \(env.telemetry.monitoringUptimeText)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(EmberTheme.textSecondary)
+                }
 
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(env.telemetry.isRunning ? Color.green : EmberTheme.textSecondary.opacity(0.4))
+                        .fill(env.telemetry.isRunning ? EmberTheme.accent : EmberTheme.textSecondary.opacity(0.4))
                         .frame(width: 10, height: 10)
-                    Text(env.telemetry.isRunning ? "Running @ high frequency" : "Stopped")
+                    Text(env.telemetry.isRunning ? "Monitoring" : "Stopped")
                         .foregroundStyle(EmberTheme.textPrimary)
                         .font(.headline)
                 }
@@ -192,6 +202,7 @@ struct DashboardView: View {
                         env.telemetry.stop()
                     } else {
                         env.telemetry.start(baseURL: env.api.baseURL)
+                        showTelemetryMonitor = true
                     }
                 } label: {
                     Text(env.telemetry.isRunning ? "Stop telemetry capture" : "Start telemetry capture")
@@ -199,20 +210,196 @@ struct DashboardView: View {
                 }
                 .buttonStyle(EmberPrimaryButtonStyle(enabled: true))
 
+                if env.telemetry.isRunning {
+                    Button {
+                        showTelemetryMonitor = true
+                    } label: {
+                        Text("Open telemetry monitor")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(EmberPrimaryButtonStyle(enabled: true))
+                }
+
                 Text("Upload status: \(env.telemetry.lastUploadStatus)")
                     .font(.caption)
                     .foregroundStyle(EmberTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                ScrollView {
-                    Text(env.telemetry.latestLiveJSON)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(EmberTheme.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+                Divider().overlay(EmberTheme.cardBorder)
+
+                telemetryFaceSection
+                telemetryMotionSection
+                telemetryVocalSection
+                telemetryTouchSection
+                telemetryEnvironmentSection
+
+                DisclosureGroup("Raw telemetry JSON") {
+                    ScrollView {
+                        Text(env.telemetry.latestLiveJSON)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(EmberTheme.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(minHeight: 120, maxHeight: 220)
                 }
-                .frame(minHeight: 120, maxHeight: 220)
+                .tint(EmberTheme.textPrimary)
             }
+        }
+    }
+
+    private var telemetryFaceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Affective tracking (ARKit)")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(EmberTheme.textSecondary)
+            if let face = env.telemetry.latestFaceSample {
+                HStack(spacing: 10) {
+                    metricTile(title: "Pitch", value: String(format: "%.1f°", face.headPitch * 180 / .pi))
+                    metricTile(title: "Yaw", value: String(format: "%.1f°", face.headYaw * 180 / .pi))
+                    metricTile(title: "Roll", value: String(format: "%.1f°", face.headRoll * 180 / .pi))
+                }
+                .frame(maxHeight: 74)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(face.blendShapes.keys.sorted(), id: \.self) { key in
+                        let value = max(0, min(1, face.blendShapes[key] ?? 0))
+                        HStack(spacing: 8) {
+                            Text(key)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(EmberTheme.textSecondary)
+                                .frame(width: 130, alignment: .leading)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.35))
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(EmberTheme.accent.opacity(0.85))
+                                        .frame(width: geo.size.width * value)
+                                }
+                            }
+                            .frame(height: 8)
+                            Text(String(format: "%.0f", value * 100))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(EmberTheme.textPrimary)
+                                .frame(width: 28, alignment: .trailing)
+                        }
+                        .frame(height: 12)
+                    }
+                }
+                .frame(maxHeight: 250)
+            } else {
+                Text("No face sample yet. Requires TrueDepth front camera + telemetry running.")
+                    .font(.caption)
+                    .foregroundStyle(EmberTheme.textSecondary)
+            }
+        }
+    }
+
+    private var telemetryMotionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Micro-tremors (CoreMotion)")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(EmberTheme.textSecondary)
+            if let m = env.telemetry.latestMotionSample {
+                HStack(spacing: 10) {
+                    metricTile(title: "X", value: String(format: "%.4f", m.userAccelerationX))
+                    metricTile(title: "Y", value: String(format: "%.4f", m.userAccelerationY))
+                    metricTile(title: "Z", value: String(format: "%.4f", m.userAccelerationZ))
+                }
+                .frame(maxHeight: 74)
+                metricLine("Tremor index", String(format: "%.4f", env.telemetry.tremorIndex))
+                metricLine("Attitude pitch/roll/yaw", String(format: "%.3f / %.3f / %.3f", m.attitudePitch, m.attitudeRoll, m.attitudeYaw))
+                metricLine("Rotation x/y/z", String(format: "%.3f / %.3f / %.3f", m.rotationRateX, m.rotationRateY, m.rotationRateZ))
+                metricLine("Gravity x/y/z", String(format: "%.3f / %.3f / %.3f", m.gravityX, m.gravityY, m.gravityZ))
+                metricLine("Mag field x/y/z", String(format: "%.2f / %.2f / %.2f", m.magneticFieldX, m.magneticFieldY, m.magneticFieldZ))
+                metricLine("Mag accuracy", m.magneticFieldAccuracy)
+            } else {
+                Text("No motion sample yet.")
+                    .font(.caption)
+                    .foregroundStyle(EmberTheme.textSecondary)
+            }
+        }
+    }
+
+    private var telemetryVocalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Vocal prosody (44.1 kHz)")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(EmberTheme.textSecondary)
+            if let v = env.telemetry.latestVocalSample {
+                metricLine("F0 (Hz)", String(format: "%.2f", v.fundamentalFrequencyHz))
+                metricLine("Jitter / Shimmer", String(format: "%.5f / %.5f", v.jitterApprox, v.shimmerApprox))
+                metricLine("Spectral centroid", String(format: "%.2f", v.spectralCentroid))
+                metricLine("Spectral rolloff", String(format: "%.2f", v.spectralRolloff))
+                metricLine("Spectral flux", String(format: "%.5f", v.spectralFlux))
+                metricLine("ZCR", String(format: "%.5f", v.zeroCrossingRate))
+                metricLine("RMS", String(format: "%.5f", v.rmsEnergy))
+                metricLine("Average / Peak dB", String(format: "%.2f / %.2f", v.averagePowerDb, v.peakPowerDb))
+                if !v.mfcc1to13.isEmpty {
+                    let mfccText = v.mfcc1to13.map { String(format: "%.2f", $0) }.joined(separator: ", ")
+                    Text("MFCC 1-13: \(mfccText)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(EmberTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text("No vocal sample yet.")
+                    .font(.caption)
+                    .foregroundStyle(EmberTheme.textSecondary)
+            }
+        }
+    }
+
+    private var telemetryTouchSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Tactile impulsivity")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(EmberTheme.textSecondary)
+            if let t = env.telemetry.latestTouchSample {
+                metricLine("Phase", t.phase)
+                metricLine("Point", String(format: "(%.1f, %.1f)", t.x, t.y))
+                metricLine("Force", String(format: "%.3f", t.force))
+                metricLine("Major radius", String(format: "%.3f ± %.3f", t.majorRadius, t.majorRadiusTolerance))
+                metricLine("Tap count", "\(t.tapCount)")
+                if let d = t.interTapIntervalSec {
+                    metricLine("Inter-tap interval", String(format: "%.4f s", d))
+                }
+                if let v = t.swipeVelocityPointsPerSec {
+                    metricLine("Swipe velocity", String(format: "%.2f pts/s", v))
+                }
+            } else {
+                Text("No touch sample yet.")
+                    .font(.caption)
+                    .foregroundStyle(EmberTheme.textSecondary)
+            }
+        }
+    }
+
+    private var telemetryEnvironmentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sensory environment")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(EmberTheme.textSecondary)
+            if let e = env.telemetry.latestEnvironmentSample {
+                metricLine("Brightness", String(format: "%.3f", e.brightness))
+                metricLine("Ambient noise dB", String(format: "%.2f dB", e.ambientNoiseDb))
+            } else {
+                Text("No environment sample yet.")
+                    .font(.caption)
+                    .foregroundStyle(EmberTheme.textSecondary)
+            }
+        }
+    }
+
+    private func metricLine(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(EmberTheme.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(EmberTheme.textPrimary)
         }
     }
 

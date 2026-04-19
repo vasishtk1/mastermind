@@ -18,11 +18,19 @@ mkdir -p "$DEST"
 
 copy_one() {
   local name="$1"
+  local required="${2:-0}"
   local src="${CACTUS_WEIGHTS}/${name}"
   if [[ -d "$src" ]]; then
     rm -rf "${DEST}/${name}"
-    ditto "$src" "${DEST}/${name}"
-    echo "Copied weights: ${name}"
+    if ditto "$src" "${DEST}/${name}"; then
+      echo "Copied weights: ${name}"
+    else
+      rm -rf "${DEST:?}/${name}" || true
+      echo "warning: Failed to copy ${name} (likely low disk space)."
+      if [[ "$required" == "1" ]]; then
+        echo "warning: Required model ${name} is unavailable in this build."
+      fi
+    fi
   else
     echo "warning: Missing ${src}"
     case "${name}" in
@@ -32,5 +40,12 @@ copy_one() {
   fi
 }
 
-copy_one "functiongemma-270m-it"
-copy_one "parakeet-tdt-0.6b-v3"
+copy_one "functiongemma-270m-it" 1
+
+# Parakeet can be very large; skip by default to avoid script-phase failures on low disk.
+# Set EMBER_COPY_PARAKEET_WEIGHTS=1 in Build Settings -> Environment Variables if needed.
+if [[ "${EMBER_COPY_PARAKEET_WEIGHTS:-0}" == "1" ]]; then
+  copy_one "parakeet-tdt-0.6b-v3" 0
+else
+  echo "Skipping parakeet-tdt-0.6b-v3 copy (set EMBER_COPY_PARAKEET_WEIGHTS=1 to enable)."
+fi
