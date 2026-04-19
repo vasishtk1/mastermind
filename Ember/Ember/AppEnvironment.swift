@@ -37,7 +37,7 @@ final class AppEnvironment: ObservableObject {
     private var didStartEscalationServices = false
 
     init(
-        patientId: String = "demo-patient-001"
+        patientId: String = "pat-test-1"
     ) {
         let baseURL = Bundle.main.emberAPIBaseURL
         let api = APIService(baseURL: baseURL)
