@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -42,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePatientDirectory } from "@/context/PatientDirectoryContext";
+import { useEmberData } from "@/context/EmberClinicalContext";
 
 const API_BASE = "http://localhost:8000";
 
@@ -272,7 +273,7 @@ const fmtTime = (iso: string) => {
 };
 
 const PatientProfiles = () => {
-  const { patients, addPatient } = usePatientDirectory();
+  const { patients, addPatient } = useEmberData();
   const [addPatientOpen, setAddPatientOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId ? patients.find((p) => p.id === openId) ?? null : null;
@@ -322,12 +323,21 @@ const PatientProfiles = () => {
                 <div className="label-tiny">Last activity</div>
                 <div className="mono text-xs text-foreground mt-0.5">{p.last_activity ? fmtTime(p.last_activity) : "—"}</div>
               </div>
-              <button
-                onClick={() => setOpenId(p.id)}
-                className="bg-surface-elevated border border-border hover:border-primary/60 rounded-md px-4 py-2 text-sm transition-colors"
-              >
-                View
-              </button>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/patients/${p.id}/profile`}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-3 py-2 text-sm font-semibold transition-colors inline-flex items-center justify-center"
+                >
+                  Neuro workspace
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(p.id)}
+                  className="bg-surface-elevated border border-border hover:border-primary/60 rounded-md px-4 py-2 text-sm transition-colors"
+                >
+                  Summary
+                </button>
+              </div>
             </div>
           );
         })}

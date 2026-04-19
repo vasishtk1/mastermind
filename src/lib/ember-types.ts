@@ -163,6 +163,9 @@ export interface IncidentReport {
   deployed_directive?: DeployedDirective;
 }
 
+/** Device → cloud ingestion row (same shape as triage incident in this build). */
+export type IncomingDeviceEvent = IncidentReport;
+
 export interface ClinicalSynthesis {
   generated_at: string;
   model: string;

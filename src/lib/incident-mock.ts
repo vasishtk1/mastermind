@@ -109,14 +109,29 @@ export const MOCK_INCIDENTS: IncidentReport[] = [
   },
 ];
 
+type PatientStub = {
+  id: string;
+  patient_name: string;
+  patient_initials: string;
+  patient_accent: "teal" | "violet" | "coral";
+};
+
 /** Generates a fresh "incoming" critical incident for polling demo */
-export function generateIncomingIncident(seq: number): IncidentReport {
+export function generateIncomingIncident(seq: number, patientPool?: PatientStub[]): IncidentReport {
+  const pool: PatientStub[] =
+    patientPool && patientPool.length > 0
+      ? patientPool
+      : [
+          { id: "pat-mira", patient_name: "Mira K.", patient_initials: "MK", patient_accent: "teal" },
+          { id: "pat-james", patient_name: "James T.", patient_initials: "JT", patient_accent: "violet" },
+        ];
+
   const variants = [
     {
-      patient_id: "pat-mira",
-      patient_name: "Mira K.",
-      patient_initials: "MK",
-      patient_accent: "teal" as const,
+      patient_id: pool[0 % pool.length].id,
+      patient_name: pool[0 % pool.length].patient_name,
+      patient_initials: pool[0 % pool.length].patient_initials,
+      patient_accent: pool[0 % pool.length].patient_accent,
       trigger_type: "Pitch Escalation Detected",
       acoustic_variance: 0.79 + Math.random() * 0.1,
       peak_db: 85 + Math.floor(Math.random() * 8),
@@ -130,10 +145,10 @@ export function generateIncomingIncident(seq: number): IncidentReport {
       severity: "critical" as const,
     },
     {
-      patient_id: "pat-james",
-      patient_name: "James T.",
-      patient_initials: "JT",
-      patient_accent: "violet" as const,
+      patient_id: pool[1 % pool.length].id,
+      patient_name: pool[1 % pool.length].patient_name,
+      patient_initials: pool[1 % pool.length].patient_initials,
+      patient_accent: pool[1 % pool.length].patient_accent,
       trigger_type: "ZCR Density Spike",
       acoustic_variance: 0.66 + Math.random() * 0.08,
       peak_db: 80 + Math.floor(Math.random() * 6),

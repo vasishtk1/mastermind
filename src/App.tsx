@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { EmberLayout } from "@/components/ember/EmberLayout";
+import { ClinicianLayout } from "@/components/clinician/ClinicianLayout";
 import ResearcherIDE from "./pages/ResearcherIDE.tsx";
-import PatientDashboard from "./pages/PatientDashboard.tsx";
+import TriageDashboard from "./pages/TriageDashboard.tsx";
 import PatientMonitor from "./pages/PatientMonitor.tsx";
 import PatientProfiles from "./pages/PatientProfiles.tsx";
+import PatientNeuroscienceProfile from "./pages/PatientNeuroscienceProfile.tsx";
 import ModelAudit from "./pages/ModelAudit.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -20,12 +21,15 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<EmberLayout />}>
-            <Route path="/" element={<ResearcherIDE />} />
-            <Route path="/dashboard" element={<PatientDashboard />} />
-            <Route path="/sentinel" element={<PatientMonitor />} />
+          <Route element={<ClinicianLayout />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<TriageDashboard />} />
             <Route path="/patients" element={<PatientProfiles />} />
-            <Route path="/audit" element={<ModelAudit />} />
+            <Route path="/patients/:patientId/profile" element={<PatientNeuroscienceProfile />} />
+            <Route path="/sentinel" element={<PatientMonitor />} />
+            <Route path="/auditing" element={<ModelAudit />} />
+            <Route path="/research" element={<ResearcherIDE />} />
+            <Route path="/audit" element={<Navigate to="/auditing" replace />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

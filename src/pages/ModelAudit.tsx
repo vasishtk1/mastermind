@@ -23,6 +23,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import type { EvalCaseResult, EvalSummary } from "@/lib/ember-types";
+import { useEmberData } from "@/context/EmberClinicalContext";
 
 const API_BASE = "http://localhost:8000";
 
@@ -66,6 +67,7 @@ const formatDialect = (d: string) =>
     .join(" ");
 
 const ModelAudit = () => {
+  const { auditMetrics } = useEmberData();
   const [data, setData] = useState<EvalSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,6 +137,22 @@ const ModelAudit = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {auditMetrics.map((m) => (
+            <div key={m.id} className="rounded-lg border border-border bg-card/70 p-4 space-y-1">
+              <p className="text-sm font-semibold text-foreground">{m.label}</p>
+              <p className="mono text-[10px] text-muted-foreground">{m.model}</p>
+              <p className="mono text-xs text-primary mt-2 tabular-nums">
+                Precision @ HIGH {(m.precision_at_high * 100).toFixed(0)}%
+              </p>
+              <p className="mono text-[10px] text-muted-foreground">
+                Calibration drift {m.calibration_drift.toFixed(2)} · checked{" "}
+                {new Date(m.checked_at).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+
         {loading && !data && <LoadingSkeleton />}
 
         {!loading && noRunsYet && (

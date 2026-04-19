@@ -13,6 +13,7 @@ import {
 import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap } from "lucide-react";
 import { CountUp } from "@/components/ember/CountUp";
 import { PATIENTS, PROFILES } from "@/lib/ember-mock";
+import { useEmberData } from "@/context/EmberClinicalContext";
 import { cn } from "@/lib/utils";
 import { useTelemetry } from "@/hooks/useTelemetry";
 import type { TelemetryStats } from "@/lib/telemetry-types";
@@ -75,7 +76,8 @@ const DISPLAY_BLENDSHAPES = [
 ] as const;
 
 const PatientMonitor = () => {
-  const patient = PATIENTS[0];
+  const { patients } = useEmberData();
+  const patient = patients[0] ?? PATIENTS[0];
   const profile = PROFILES.find((p) => p.patient_id === patient.id && p.active) ?? PROFILES[0];
 
   // --------------------------------------------------------------------------

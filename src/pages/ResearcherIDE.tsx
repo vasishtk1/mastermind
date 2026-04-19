@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Activity, Brain, Crosshair, Loader2, Rocket, Save, TrendingUp, Waves, Wind, Zap } from "lucide-react";
 import { PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
 import type { Profile, RadarMetrics, TriggerCategory } from "@/lib/ember-types";
-import { usePatientDirectory } from "@/context/PatientDirectoryContext";
+import { useEmberData } from "@/context/EmberClinicalContext";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES: TriggerCategory[] = [
@@ -35,7 +35,7 @@ const toArray = (r: RadarMetrics) => RADAR_KEYS.map((k) => r[k]);
 const fmtDelta = (delta: number) => `${delta >= 0 ? "+" : ""}${Math.round(delta)}`;
 
 const ResearcherIDE = () => {
-  const { patients } = usePatientDirectory();
+  const { patients } = useEmberData();
   const [text, setText] = useState("");
   const [patientId, setPatientId] = useState(() => patients[0]?.id ?? "");
 
