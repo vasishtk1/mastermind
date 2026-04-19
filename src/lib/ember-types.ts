@@ -118,6 +118,80 @@ export type ThresholdAdjustment = {
   rationale: string;
 };
 
+// ---------------------------------------------------------------------------
+// Escalation Protocol — Incident Reports & Clinician Directives
+// ---------------------------------------------------------------------------
+
+export type IncidentSeverity = "low" | "moderate" | "high" | "critical";
+export type IncidentStatus   = "unreviewed" | "in_review" | "resolved";
+
+export interface IncidentReport {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  patient_initials: string;
+  patient_accent: "teal" | "violet" | "coral";
+  timestamp: string;
+
+  /** What triggered the on-device model */
+  trigger_type: string;
+
+  /** Acoustic signal intensity at trigger time (0–1) */
+  acoustic_variance: number;
+  peak_db: number;
+
+  /** Patient's typed self-report during the check-in */
+  user_statement: string;
+
+  /** 5-second ARKit facial stress composite (0–1) */
+  arkit_stress_index: number;
+  /** Most-elevated blend shape pair at trigger, e.g. "browInnerUp + mouthFrown" */
+  arkit_dominant_expression: string;
+
+  /** Plain-text summary of what the on-device AI did */
+  on_device_action: string;
+  /** Whether the on-device AI reported patient returned to baseline */
+  stabilized: boolean;
+
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+
+  /** Populated after the clinician clicks "Synthesize via RAG" */
+  clinical_synthesis?: ClinicalSynthesis;
+
+  /** Populated after the clinician deploys a directive */
+  deployed_directive?: DeployedDirective;
+}
+
+export interface ClinicalSynthesis {
+  generated_at: string;
+  model: string;
+  summary: string;
+  dsm_mapping: string;
+  risk_assessment: string;
+  recommended_followup: string;
+  keywords: string[];
+  severity_score: number; // 0–10
+}
+
+export type DirectiveActivityType =
+  | "Breathing Exercise"
+  | "Journaling"
+  | "Grounding (5-4-3-2-1)"
+  | "Mindfulness Meditation"
+  | "Physical Movement"
+  | "Social Connection"
+  | "Custom";
+
+export interface DeployedDirective {
+  id: string;
+  incident_id: string;
+  directive_type: DirectiveActivityType;
+  instructions: string;
+  deployed_at: string;
+  acknowledged: boolean;
+}
+
 export type RemediationProposal = {
   proposal_id: string;
   patient_id: string;

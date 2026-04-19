@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { EmberLayout } from "@/components/ember/EmberLayout";
 import ResearcherIDE from "./pages/ResearcherIDE.tsx";
+import PatientDashboard from "./pages/PatientDashboard.tsx";
 import PatientMonitor from "./pages/PatientMonitor.tsx";
 import PatientProfiles from "./pages/PatientProfiles.tsx";
 import ModelAudit from "./pages/ModelAudit.tsx";
@@ -21,6 +22,7 @@ const App = () => (
         <Routes>
           <Route element={<EmberLayout />}>
             <Route path="/" element={<ResearcherIDE />} />
+            <Route path="/dashboard" element={<PatientDashboard />} />
             <Route path="/sentinel" element={<PatientMonitor />} />
             <Route path="/patients" element={<PatientProfiles />} />
             <Route path="/audit" element={<ModelAudit />} />

@@ -161,6 +161,30 @@ class TelemetryBatchPayload(BaseModel):
     pointer: Dict = Field(default_factory=dict)
 
 
+class DirectivePayload(BaseModel):
+    """Clinician-authored directive deployed back to the patient's iPhone."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    incident_id: str = Field(..., description="The incident this directive responds to")
+    directive_type: str = Field(..., description="Activity category, e.g. 'Breathing Exercise'")
+    instructions: str = Field(..., description="Full clinician note / instructions for the patient")
+
+
+class DirectiveResponse(BaseModel):
+    """Acknowledgement returned after a directive is persisted."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    incident_id: str
+    patient_id: str
+    directive_type: str
+    instructions: str
+    deployed_at: str
+    status: str = "deployed"
+
+
 class RemediationProposal(BaseModel):
     """LLM-generated configuration proposal for the on-device agent."""
 

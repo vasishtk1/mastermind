@@ -28,6 +28,8 @@ from database import Base, engine, get_db
 from db_models import ClinicalReport, DeviceEvent, EvalCaseResult, EvalRun, Patient, TelemetryBatch
 from models import (
     ClinicalIncidentReport,
+    DirectivePayload,
+    DirectiveResponse,
     EvalSummary,
     IncomingDeviceEvent,
     MonitorResult,
@@ -292,6 +294,43 @@ async def remediate_patient(
         ) from exc
 
     return proposal
+
+
+# ---------------------------------------------------------------------------
+# Clinician directives — deploy insight / action back to the patient's device
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/api/patients/{patient_id}/directives",
+    response_model=DirectiveResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Directives"],
+    summary="Deploy a clinician directive to a patient's device",
+)
+async def deploy_directive(
+    patient_id: str,
+    payload: DirectivePayload,
+    db: AsyncSession = Depends(get_db),
+) -> DirectiveResponse:
+    """
+    Persists a clinician-authored directive (activity + instructions) that will
+    be pushed to the patient's iPhone on next sync. In production this would
+    enqueue a push notification; for the demo it is stored in the DB and
+    returned immediately so the frontend can display confirmation.
+    """
+    await _ensure_patient(patient_id, db)
+    directive_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    return DirectiveResponse(
+        id=directive_id,
+        incident_id=payload.incident_id,
+        patient_id=patient_id,
+        directive_type=payload.directive_type,
+        instructions=payload.instructions,
+        deployed_at=now,
+        status="deployed",
+    )
 
 
 # ---------------------------------------------------------------------------

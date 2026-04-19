@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { Brain, HeartPulse, ShieldCheck, Users } from "lucide-react";
+import { Brain, HeartPulse, LayoutDashboard, ShieldCheck, Users } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const items = [
   { to: "/", icon: Brain, label: "Researcher IDE" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Clinician Dashboard" },
   { to: "/sentinel", icon: HeartPulse, label: "Patient Monitor" },
   { to: "/patients", icon: Users, label: "Patient Profiles" },
   { to: "/audit", icon: ShieldCheck, label: "Model Rigor & Auditing" },
