@@ -4,66 +4,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ember — clinical neuro-ICU dark theme. All colors HSL. */
+/* Ember v2 — clinical dark mode palette. All colors HSL. */
 
 @layer base {
   :root {
-    --background: 222 44% 6%;            /* #080C18 */
-    --foreground: 200 30% 92%;
+    --background: 220 8% 12%;             /* #1B1D20 */
+    --foreground: 0 0% 98%;               /* #F9F9F9 */
 
-    --surface: 224 50% 5%;               /* sidebar deepest */
-    --surface-elevated: 222 38% 9%;      /* card #0D1220 */
-    --surface-glow: 222 40% 12%;
+    --surface: 216 9% 16%;                /* #25282C */
+    --surface-elevated: 216 9% 16%;
+    --surface-glow: 216 9% 20%;
 
-    --card: 222 38% 9%;
-    --card-foreground: 200 30% 92%;
+    --card: 216 9% 16%;                   /* #25282C */
+    --card-foreground: 0 0% 98%;
 
-    --popover: 222 44% 6%;
-    --popover-foreground: 200 30% 92%;
+    --popover: 220 8% 12%;
+    --popover-foreground: 0 0% 98%;
 
-    /* Teal #00D4B4 */
-    --primary: 171 100% 42%;
-    --primary-foreground: 222 44% 6%;
-    --primary-glow: 171 100% 55%;
+    --primary: 24 77% 55%;                /* #E27533 */
+    --primary-foreground: 220 8% 12%;
+    --primary-glow: 30 59% 60%;           /* #D6975A */
 
-    /* Violet #8B5CF6 */
-    --secondary: 258 90% 66%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 216 14% 59%;             /* #8A95A5 */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 18% 60%;
+    --muted: 216 8% 21%;
+    --muted-foreground: 219 16% 66%;      /* #9BA4B5 */
 
-    --accent: 258 90% 66%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 41 34% 92%;                 /* #F2EEE3 */
+    --accent-foreground: 220 8% 12%;
 
-    /* Coral #FF6B6B */
-    --destructive: 0 100% 71%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 24 77% 55%;
+    --destructive-foreground: 220 8% 12%;
 
-    /* Status */
-    --safe: 158 75% 50%;
-    --warning: 38 92% 50%;                /* amber #F59E0B */
-    --danger: 0 100% 71%;                 /* coral */
+    --safe: 41 34% 92%;                   /* baseline cream */
+    --warning: 30 59% 60%;
+    --danger: 24 77% 55%;
 
-    --border: 222 35% 17%;                /* #1A2340 */
-    --input: 222 35% 12%;
-    --ring: 171 100% 42%;
+    --border: 220 8% 25%;                 /* #3A3E45 */
+    --input: 220 8% 14%;
+    --ring: 24 77% 55%;
 
     --radius: 0.375rem;                   /* 6px max */
 
-    --shadow-glow-teal: 0 0 24px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.12);
-    --shadow-glow-violet: 0 0 24px hsl(var(--secondary) / 0.4);
+    --shadow-glow-teal: 0 0 24px hsl(var(--primary) / 0.35), 0 0 60px hsl(var(--primary) / 0.15);
+    --shadow-glow-violet: 0 0 24px hsl(var(--secondary) / 0.3);
     --shadow-glow-danger: 0 0 32px hsl(var(--danger) / 0.55);
-  --shadow-panel: 0 4px 24px hsl(222 60% 2% / 0.6);
+    --shadow-panel: 0 8px 32px hsl(220 14% 6% / 0.55);
 
-    --sidebar-background: 224 50% 5%;
-    --sidebar-foreground: 200 30% 92%;
-    --sidebar-primary: 171 100% 42%;
-    --sidebar-primary-foreground: 222 44% 6%;
-    --sidebar-accent: 222 38% 9%;
-    --sidebar-accent-foreground: 200 30% 92%;
-    --sidebar-border: 222 35% 17%;
-    --sidebar-ring: 171 100% 42%;
+    --sidebar-background: 220 8% 12%;
+    --sidebar-foreground: 219 16% 66%;
+    --sidebar-primary: 24 77% 55%;
+    --sidebar-primary-foreground: 220 8% 12%;
+    --sidebar-accent: 216 9% 16%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 8% 25%;
+    --sidebar-ring: 24 77% 55%;
   }
 }
 
@@ -73,13 +69,13 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv02","cv03","cv04","cv11";
   }
-  ::selection { background: hsl(var(--primary) / 0.3); }
+  ::selection { background: hsl(var(--primary) / 0.25); }
   body::before {
     content: '';
     position: fixed; inset: 0; pointer-events: none; z-index: 0;
     background-image:
-      linear-gradient(hsl(var(--primary) / 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--primary) / 0.025) 1px, transparent 1px);
+      linear-gradient(hsl(var(--muted-foreground) / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--muted-foreground) / 0.03) 1px, transparent 1px);
     background-size: 48px 48px;
     mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
   }

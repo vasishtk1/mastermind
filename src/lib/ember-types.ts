@@ -58,3 +58,12 @@ export type Patient = {
   accent: "teal" | "violet" | "coral";
   last_activity?: string;
 };
+
+export type ClinicalIncidentReport = {
+  patient_id: string;
+  incident_timestamp: string;
+  estimated_severity_score: number;
+  clinical_summary: string;
+  recommended_followup: string;
+  keywords: string[];
+};

@@ -150,7 +150,6 @@ const PatientMonitor = () => {
 
   return (
     <div className="relative h-screen flex flex-col">
-      {/* Radial pulse on trigger */}
       {triggered && (
         <div
           key={pulse}
@@ -161,7 +160,6 @@ const PatientMonitor = () => {
         />
       )}
 
-      {/* Header */}
       <header className="px-8 py-4 border-b border-border flex items-center justify-between bg-surface/40 backdrop-blur-sm z-10">
         <div className="flex items-center gap-5">
           <div className={cn(
@@ -198,7 +196,6 @@ const PatientMonitor = () => {
         </div>
       </header>
 
-      {/* Waveform */}
       <section className="flex-1 px-8 py-6 min-h-0">
         <div className="panel p-5 h-full flex flex-col scanlines">
           <div className="flex items-center justify-between mb-3">
@@ -233,7 +230,6 @@ const PatientMonitor = () => {
         </div>
       </section>
 
-      {/* 6 metric cards */}
       <section className="px-8 pb-6 grid grid-cols-6 gap-3">
         <Stat label="Current dB" value={curDb} unit="dB" warn={curDb > 75} />
         <Stat label="Anomaly score" value={curAnom} unit="" decimals={2} warn={curAnom > 0.7} danger={curAnom > 0.85} />
@@ -243,7 +239,6 @@ const PatientMonitor = () => {
         <Stat label="Pitch variance" value={pitchVar} unit="σ" decimals={2} />
       </section>
 
-      {/* Intervention panel */}
       {triggered && reasoning && (
         <div className="absolute left-0 right-0 bottom-0 z-40 px-8 pb-6 animate-slide-up" style={{ height: 300 }}>
           <div className="panel border-danger/50 glow-danger p-6 bg-card/95 backdrop-blur-md h-full flex flex-col">

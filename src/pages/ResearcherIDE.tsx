@@ -1,20 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Brain, Loader2, Save, Rocket, Waves, Activity, TrendingUp, Wind, Crosshair, Zap } from "lucide-react";
-import { Radar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  RadialLinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip as CTooltip,
-  Legend,
-} from "chart.js";
+import { useEffect, useState } from "react";
+import { Activity, Brain, Crosshair, Loader2, Rocket, Save, TrendingUp, Waves, Wind, Zap } from "lucide-react";
 import { PATIENTS, PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
-import type { Profile, TriggerCategory } from "@/lib/ember-types";
+import type { Profile, RadarMetrics, TriggerCategory } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
-
-ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, CTooltip, Legend);
 
 const CATEGORIES: TriggerCategory[] = [
   "Auditory overstimulation",
@@ -33,11 +21,24 @@ const STATUS_MSGS = [
 ];
 
 const ICONS: Record<string, any> = { Waves, Activity, TrendingUp, Wind, Crosshair, Zap };
+const RADAR_KEYS: Array<keyof RadarMetrics> = [
+  "spectral_flux",
+  "mfcc_deviation",
+  "pitch_escalation",
+  "breath_rate",
+  "spectral_centroid",
+  "zcr_density",
+];
+
+const toArray = (r: RadarMetrics) => RADAR_KEYS.map((k) => r[k]);
+const fmtDelta = (delta: number) => `${delta >= 0 ? "+" : ""}${Math.round(delta)}`;
 
 const ResearcherIDE = () => {
   const [text, setText] = useState("");
   const [patientId, setPatientId] = useState(PATIENTS[0].id);
-  const [category, setCategory] = useState<TriggerCategory>("Auditory overstimulation");
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(CATEGORIES);
+  const [category, setCategory] = useState<string>("Auditory overstimulation");
+  const [customCategory, setCustomCategory] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
   const [generated, setGenerated] = useState<Profile | null>(null);
@@ -54,12 +55,15 @@ const ResearcherIDE = () => {
     setGenerated(null);
     setTimeout(() => {
       const seed = PROFILES[Math.floor(Math.random() * PROFILES.length)];
+      const triggerCategory = CATEGORIES.includes(category as TriggerCategory)
+        ? (category as TriggerCategory)
+        : "Custom";
       const newProf: Profile = {
         ...seed,
         id: `prof-gen-${Date.now()}`,
         patient_id: patientId,
-        trigger_category: category,
-        description: text || seed.description,
+        trigger_category: triggerCategory,
+        description: text || (triggerCategory === "Custom" ? `Custom trigger category: ${category}.` : seed.description),
         name: `${category.split(" ")[0].toUpperCase().slice(0, 4)}-GEN-${String(Math.floor(Math.random() * 900) + 100)}`,
         active: false,
         updated_at: new Date().toISOString(),
@@ -69,65 +73,26 @@ const ResearcherIDE = () => {
     }, 2500);
   };
 
-  const radarData = useMemo(() => {
-    const labels = ["Spectral Flux", "MFCC Deviation", "Pitch Escalation", "Breath Rate", "Spectral Centroid", "ZCR Density"];
-    const safe = generated?.safe_radar ?? PROFILES[0].safe_radar;
-    const danger = generated?.danger_radar ?? PROFILES[0].danger_radar;
-    const toArr = (r: any) => [r.spectral_flux, r.mfcc_deviation, r.pitch_escalation, r.breath_rate, r.spectral_centroid, r.zcr_density];
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Safe baseline",
-          data: toArr(safe),
-          borderColor: "hsl(171 100% 42%)",
-          backgroundColor: "hsla(171, 100%, 42%, 0.18)",
-          borderWidth: 1.5,
-          pointBackgroundColor: "hsl(171 100% 42%)",
-          pointRadius: 3,
-        },
-        {
-          label: "Danger profile",
-          data: toArr(danger),
-          borderColor: "hsl(0 100% 71%)",
-          backgroundColor: "hsla(0, 100%, 71%, 0.18)",
-          borderWidth: 1.5,
-          pointBackgroundColor: "hsl(0 100% 71%)",
-          pointRadius: 3,
-        },
-      ],
-    };
-  }, [generated]);
+  const addCustomCategory = () => {
+    const value = customCategory.trim();
+    if (!value) return;
+    if (!categoryOptions.some((option) => option.toLowerCase() === value.toLowerCase())) {
+      setCategoryOptions((prev) => [...prev.filter((v) => v !== "Custom"), value, "Custom"]);
+    }
+    setCategory(value);
+    setCustomCategory("");
+  };
 
-  const radarOptions = useMemo<any>(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top",
-        labels: { color: "hsl(200 30% 92%)", font: { family: "Inter", size: 11 }, usePointStyle: true, boxWidth: 8 },
-      },
-      tooltip: { enabled: false },
-    },
-    scales: {
-      r: {
-        min: 0,
-        max: 100,
-        angleLines: { color: "hsla(171, 100%, 42%, 0.12)" },
-        grid: { color: "hsla(171, 100%, 42%, 0.1)" },
-        pointLabels: { color: "hsl(215 18% 70%)", font: { family: "JetBrains Mono", size: 10 } },
-        ticks: { display: false, stepSize: 25 },
-      },
-    },
-  }), []);
+  const safeRadar = generated?.safe_radar ?? PROFILES[0].safe_radar;
+  const dangerRadar = generated?.danger_radar ?? PROFILES[0].danger_radar;
+  const isReference = !generated;
 
   return (
-    <div className="h-screen flex overflow-hidden">
-      {/* Left column */}
-      <div className="w-[420px] shrink-0 border-r border-border overflow-y-auto p-6 space-y-5">
+    <div className="h-screen flex overflow-hidden bg-background">
+      <div className="basis-[30%] max-w-[460px] min-w-[360px] shrink-0 border-r border-border overflow-y-auto p-7 space-y-5 bg-card">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">New clinical observation</h1>
-          <p className="text-xs text-muted-foreground mt-1">
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">New clinical observation</h1>
+          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
             Describe what you observe about this patient's triggers in natural language.
           </p>
         </div>
@@ -135,11 +100,11 @@ const ResearcherIDE = () => {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. Patient shows elevated distress in environments with multiple overlapping voices, particularly when unable to identify an exit. History of combat PTSD. Crowded transit seems to be a primary trigger."
-          className="w-full min-h-[140px] bg-input border border-border rounded-md p-3 text-sm font-sans focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 resize-y placeholder:text-muted-foreground/60"
+          placeholder="e.g. Patient exhibits rising distress with overlapping voices and constrained exits. Prosody instability increases during transit crowd density."
+          className="w-full min-h-[150px] bg-[#16181A] border border-border rounded-md p-3 text-sm font-sans focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 resize-y placeholder:text-[#798293]"
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-3">
           <div>
             <div className="label-tiny mb-1.5">Patient</div>
             <select
@@ -154,18 +119,47 @@ const ResearcherIDE = () => {
             <div className="label-tiny mb-1.5">Trigger category</div>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as TriggerCategory)}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary"
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2.5 pr-9 text-sm leading-6 focus:outline-none focus:border-primary"
+              title={category}
             >
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+            {category === "Custom" && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCustomCategory();
+                    }
+                  }}
+                  placeholder="Add custom trigger name"
+                  className="flex-1 bg-[#16181A] border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomCategory}
+                  className="px-3 py-2 rounded-md text-xs font-semibold text-[#1B1D20]"
+                  style={{ background: "linear-gradient(120deg, #E27533 0%, #D6975A 100%)" }}
+                >
+                  Add
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className="w-full bg-primary text-primary-foreground hover:bg-primary-glow transition-colors rounded-md py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-70 glow-teal"
+          className="w-full rounded-md py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-70 text-[#1B1D20] transition-all"
+          style={{
+            background: "linear-gradient(120deg, #E27533 0%, #D6975A 100%)",
+            boxShadow: "0 0 18px rgba(226,117,51,0.28)",
+          }}
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
           {loading ? STATUS_MSGS[statusIdx] : "Generate neuroscience profile"}
@@ -184,34 +178,203 @@ const ResearcherIDE = () => {
         {generated && <GeneratedCard profile={generated} onChange={setGenerated} />}
       </div>
 
-      {/* Right column */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="basis-[70%] flex-1 overflow-y-auto p-7 bg-background">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">Neuroscience signal breakdown</h2>
             <p className="text-xs text-muted-foreground mt-1">Six-axis comparison of safe baseline vs. generated danger profile.</p>
           </div>
-          <div className="label-tiny">{generated ? generated.name : "Showing reference profile"}</div>
+          <div className="px-2.5 py-1 rounded border border-border bg-card">
+            <div className="mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+              {isReference ? "Showing reference profile" : `Showing ${generated.name}`}
+            </div>
+          </div>
         </div>
 
-        <div className="panel p-5 mb-5" style={{ height: 460 }}>
-          <Radar data={radarData} options={radarOptions} />
+        <div className="panel p-5 mb-5" style={{ height: 470 }}>
+          <AcousticThresholdRadar safeValues={toArray(safeRadar)} dangerValues={toArray(dangerRadar)} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {FEATURE_EXPLAINERS.map((f) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {FEATURE_EXPLAINERS.map((f, idx) => {
             const Icon = ICONS[f.icon];
+            const safeValue = toArray(safeRadar)[idx];
+            const dangerValue = toArray(dangerRadar)[idx];
             return (
-              <div key={f.key} className="bg-card border border-border rounded-md p-4 border-l-2 border-l-primary/70">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Icon className="w-4 h-4 text-primary" />
-                  <div className="text-sm font-semibold">{f.name}</div>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
-              </div>
+              <MetricCard
+                key={f.key}
+                icon={Icon}
+                name={f.name}
+                description={f.desc}
+                safeValue={safeValue}
+                dangerValue={dangerValue}
+              />
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+};
+
+const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValues: number[]; dangerValues: number[] }) => {
+  const size = 520;
+  const center = size / 2;
+  const maxRadius = 188;
+  const labels = ["Spectral Flux", "MFCC Deviation", "Pitch Escalation", "Breath Rate", "Spectral Centroid", "ZCR Density"];
+  const ringRatios = [0.33, 0.66, 1];
+  const ringLabels = ["Baseline", "Elevated", "Critical"];
+
+  const pointFor = (index: number, valueRatio: number) => {
+    const angle = (-Math.PI / 2) + (index * (2 * Math.PI) / 6);
+    const r = maxRadius * valueRatio;
+    return {
+      x: center + (Math.cos(angle) * r),
+      y: center + (Math.sin(angle) * r),
+    };
+  };
+
+  const polygonFromValues = (values: number[]) =>
+    values
+      .map((value, idx) => pointFor(idx, Math.min(1, Math.max(0, value / 100))))
+      .map((p) => `${p.x},${p.y}`)
+      .join(" ");
+
+  const ringPolygon = (ratio: number) =>
+    Array.from({ length: 6 })
+      .map((_, idx) => pointFor(idx, ratio))
+      .map((p) => `${p.x},${p.y}`)
+      .join(" ");
+
+  const safePolygon = polygonFromValues(safeValues);
+  const dangerPolygon = polygonFromValues(dangerValues);
+
+  return (
+    <div className="h-full w-full flex items-center justify-center">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full">
+        <defs>
+          <radialGradient id="emberDangerFill" cx="50%" cy="50%" r="65%">
+            <stop offset="0%" stopColor="#E27533" stopOpacity="0.06" />
+            <stop offset="70%" stopColor="#E27533" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#D6975A" stopOpacity="0.32" />
+          </radialGradient>
+          <filter id="emberGlow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {ringRatios.map((ratio) => (
+          <polygon
+            key={ratio}
+            points={ringPolygon(ratio)}
+            fill="none"
+            stroke="#3A3E45"
+            strokeDasharray="5 6"
+            strokeWidth={1}
+          />
+        ))}
+
+        {Array.from({ length: 6 }).map((_, idx) => {
+          const p = pointFor(idx, 1);
+          return <line key={idx} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#3A3E45" strokeWidth={1} />;
+        })}
+
+        <polygon points={safePolygon} fill="#F2EEE3" fillOpacity={0.2} stroke="#F2EEE3" strokeWidth={1.6} />
+        <polygon points={dangerPolygon} fill="url(#emberDangerFill)" stroke="#E27533" strokeWidth={2.2} filter="url(#emberGlow)" />
+
+        {dangerValues.map((value, idx) => {
+          const p = pointFor(idx, Math.min(1, Math.max(0, value / 100)));
+          return <circle key={idx} cx={p.x} cy={p.y} r={4.6} fill="#E27533" filter="url(#emberGlow)" />;
+        })}
+
+        {labels.map((label, idx) => {
+          const p = pointFor(idx, 1.13);
+          return (
+            <text
+              key={label}
+              x={p.x}
+              y={p.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="#9BA4B5"
+              fontSize="11"
+              fontFamily="Inter, sans-serif"
+            >
+              {label}
+            </text>
+          );
+        })}
+
+        {ringRatios.map((ratio, idx) => {
+          const p = pointFor(0, ratio);
+          return (
+            <text
+              key={ringLabels[idx]}
+              x={p.x + 8}
+              y={p.y - 8}
+              fill="#8A95A5"
+              fontSize="10"
+              fontFamily="Inter, sans-serif"
+            >
+              {ringLabels[idx]}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+const MetricCard = ({
+  icon: Icon,
+  name,
+  description,
+  safeValue,
+  dangerValue,
+}: {
+  icon: any;
+  name: string;
+  description: string;
+  safeValue: number;
+  dangerValue: number;
+}) => {
+  const delta = dangerValue - safeValue;
+  const deltaMagnitude = Math.min(100, Math.max(0, Math.abs(delta)));
+
+  return (
+    <div className="bg-card border border-border rounded-md p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-primary" />
+          <div className="text-sm font-semibold text-foreground">{name}</div>
+        </div>
+        <div className={cn("mono text-[11px] font-semibold", delta >= 0 ? "text-primary" : "text-[#8A95A5]")}>
+          {fmtDelta(delta)}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+
+      <div className="mt-3">
+        <div className="flex items-center justify-between mono text-[10px] text-muted-foreground mb-1">
+          <span>SAFE {Math.round(safeValue)}</span>
+          <span>DANGER {Math.round(dangerValue)}</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-[#16181A] border border-border overflow-hidden">
+          <div className="absolute top-0 left-0 h-full bg-[#F2EEE3]/50" style={{ width: `${safeValue}%` }} />
+          <div
+            className="absolute top-0 left-0 h-full"
+            style={{
+              width: `${dangerValue}%`,
+              background: "linear-gradient(90deg, #E27533 0%, #D6975A 100%)",
+              boxShadow: "0 0 10px rgba(226,117,51,0.35)",
+            }}
+          />
+        </div>
+        <div className="mono text-[10px] text-muted-foreground mt-1">Delta magnitude: {Math.round(deltaMagnitude)}</div>
       </div>
     </div>
   );
@@ -230,7 +393,7 @@ const GeneratedCard = ({ profile, onChange }: { profile: Profile; onChange: (p: 
   return (
     <div className="panel p-4 animate-fade-in space-y-3">
       <div className="flex items-center justify-between">
-        <div className="mono text-sm font-bold text-primary text-glow-teal">{profile.name}</div>
+        <div className="mono text-sm font-bold text-primary">{profile.name}</div>
         <span className="mono text-[10px] tracking-widest px-2 py-1 rounded-sm bg-primary/15 text-primary border border-primary/40">
           {profile.trigger_category.toUpperCase()}
         </span>
@@ -249,7 +412,10 @@ const GeneratedCard = ({ profile, onChange }: { profile: Profile; onChange: (p: 
           <span className="mono text-primary">{m.anomaly_sensitivity.toFixed(2)}</span>
         </div>
         <input
-          type="range" min={0} max={1} step={0.01}
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
           value={m.anomaly_sensitivity}
           onChange={(e) => onChange({ ...profile, metrics: { ...m, anomaly_sensitivity: +e.target.value } })}
           className="w-full accent-primary"
@@ -259,7 +425,10 @@ const GeneratedCard = ({ profile, onChange }: { profile: Profile; onChange: (p: 
         <button className="bg-surface-elevated border border-border hover:border-primary/60 text-sm rounded-md py-2 flex items-center justify-center gap-2 transition-colors">
           <Save className="w-3.5 h-3.5" /> Save to patient
         </button>
-        <button className="bg-primary text-primary-foreground hover:bg-primary-glow text-sm rounded-md py-2 flex items-center justify-center gap-2 font-semibold transition-colors">
+        <button
+          className="text-sm rounded-md py-2 flex items-center justify-center gap-2 font-semibold transition-colors text-[#1B1D20]"
+          style={{ background: "linear-gradient(120deg, #E27533 0%, #D6975A 100%)" }}
+        >
           <Rocket className="w-3.5 h-3.5" /> Deploy to sentinel
         </button>
       </div>
