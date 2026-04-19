@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -12,11 +14,21 @@ import {
 } from "chart.js";
 import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap } from "lucide-react";
 import { CountUp } from "@/components/ember/CountUp";
+import { BenchmarkConvexPanel } from "@/components/benchmark/BenchmarkConvexPanel";
 import { PATIENTS, PROFILES } from "@/lib/ember-mock";
 import { useEmberData } from "@/context/EmberClinicalContext";
+import type { Patient } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
 import { useTelemetry } from "@/hooks/useTelemetry";
+import { telemetryToMasterMindAudio } from "@/lib/mastermind-mapper";
 import type { TelemetryStats } from "@/lib/telemetry-types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, CTooltip, Legend);
 
@@ -77,8 +89,49 @@ const DISPLAY_BLENDSHAPES = [
 
 const PatientMonitor = () => {
   const { patients } = useEmberData();
-  const patient = patients[0] ?? PATIENTS[0];
-  const profile = PROFILES.find((p) => p.patient_id === patient.id && p.active) ?? PROFILES[0];
+  const convexRoster = useQuery(
+    api.patients.list,
+    import.meta.env.VITE_CONVEX_URL ? {} : "skip",
+  );
+
+  const mergedPatients = useMemo((): Patient[] => {
+    const base = patients;
+    if (!convexRoster?.length) return base;
+    const ids = new Set(base.map((p) => p.id));
+    const extra: Patient[] = [];
+    for (const row of convexRoster) {
+      if (ids.has(row.patientId)) continue;
+      extra.push({
+        id: row.patientId,
+        name: row.name,
+        initials: row.initials,
+        dob: row.dob,
+        condition: row.condition,
+        clinician: row.clinician,
+        accent: row.accent,
+        lastActivity: row.lastActivity,
+      });
+    }
+    return [...base, ...extra];
+  }, [patients, convexRoster]);
+
+  const [selectedPatientId, setSelectedPatientId] = useState(() => patients[0]?.id ?? PATIENTS[0].id);
+  const [lastGemini, setLastGemini] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!mergedPatients.some((p) => p.id === selectedPatientId)) {
+      setSelectedPatientId(mergedPatients[0]?.id ?? PATIENTS[0].id);
+    }
+  }, [mergedPatients, selectedPatientId]);
+
+  const patient = useMemo(
+    () => mergedPatients.find((p) => p.id === selectedPatientId) ?? mergedPatients[0] ?? PATIENTS[0],
+    [mergedPatients, selectedPatientId],
+  );
+  const profile =
+    PROFILES.find((p) => p.patient_id === patient.id && p.active) ??
+    PROFILES.find((p) => p.patient_id === patient.id) ??
+    PROFILES[0];
 
   // --------------------------------------------------------------------------
   // Live telemetry (real sensors)
@@ -245,6 +298,7 @@ const PatientMonitor = () => {
         });
         if (res.ok) {
           const result = await res.json() as { triggered: boolean; reasoning: string };
+          if (result.reasoning) setLastGemini(result.reasoning);
           if (result.triggered) {
             lastTrigger.current = Date.now();
             fireTrigger(result.reasoning);
@@ -311,8 +365,26 @@ const PatientMonitor = () => {
   // --------------------------------------------------------------------------
   // Render
   // --------------------------------------------------------------------------
+  const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+  const benchmarkMetrics = useMemo(
+    () => ({
+      rmsDb: stats.rmsDb,
+      anomalyScore: curAnom ?? computeAnomalyScore(stats),
+      spectralFlux: stats.spectralFlux,
+      zcr: stats.zcr,
+      f0Hz: stats.f0Hz,
+      spectralCentroid: stats.spectralCentroid,
+    }),
+    [stats, curAnom],
+  );
+
+  const mastermindAudioSnapshot = useMemo(() => {
+    if (!audioHasSignal) return null;
+    return telemetryToMasterMindAudio(stats, uptime, curDb);
+  }, [audioHasSignal, stats, uptime, curDb]);
+
   return (
-    <div className="relative h-screen flex flex-col overflow-hidden">
+    <div className="relative min-h-screen flex flex-col overflow-y-auto overflow-x-hidden">
       {triggered && (
         <div
           key={pulse}
@@ -322,21 +394,38 @@ const PatientMonitor = () => {
       )}
 
       {/* ── Header ── */}
-      <header className="px-8 py-4 border-b border-border flex items-center justify-between bg-surface/40 backdrop-blur-sm z-10 shrink-0">
-        <div className="flex items-center gap-5">
+      <header className="px-8 py-4 border-b border-border flex flex-wrap items-center justify-between gap-4 bg-surface/40 backdrop-blur-sm z-10 shrink-0">
+        <div className="flex items-center gap-5 min-w-0">
           <div className={cn(
-            "w-11 h-11 rounded-md grid place-items-center font-semibold border",
+            "w-11 h-11 rounded-md grid place-items-center font-semibold border shrink-0",
             patient.accent === "teal"   && "bg-primary/15 text-primary border-primary/40",
             patient.accent === "violet" && "bg-secondary/15 text-secondary border-secondary/40",
             patient.accent === "coral"  && "bg-danger/15 text-danger border-danger/40",
           )}>
             {patient.initials}
           </div>
-          <div>
-            <div className="label-tiny">Patient</div>
-            <div className="text-base font-semibold">{patient.name}</div>
+          <div className="min-w-0">
+            <div className="label-tiny">Benchmark patient</div>
+            <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+              <SelectTrigger className="mt-1 w-[min(100%,240px)] h-9 border-border bg-background text-left font-semibold">
+                <SelectValue placeholder="Choose patient" />
+              </SelectTrigger>
+              <SelectContent>
+                {mergedPatients.map((p) => {
+                  const convexOnly = Boolean(convexRoster?.some((r) => r.patientId === p.id) && !patients.some((x) => x.id === p.id));
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} · {p.condition}
+                      {convexOnly ? (
+                        <span className="ml-1.5 text-[10px] text-primary">(Convex)</span>
+                      ) : null}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="h-10 w-px bg-border" />
+          <div className="h-10 w-px bg-border hidden sm:block shrink-0" />
           <div>
             <div className="label-tiny">Active profile</div>
             <div className="text-base font-medium text-primary mono">{profile.name}</div>
@@ -371,10 +460,10 @@ const PatientMonitor = () => {
               : "bg-primary/10 border-primary/50 text-primary",
           )}>
             <span className={cn("w-1.5 h-1.5 rounded-full", triggered ? "bg-danger" : "bg-primary animate-pulse-dot")} />
-            {triggered ? "TRIGGERED" : "MONITORING"}
+            {triggered ? "TRIGGERED" : "BENCHMARKING"}
           </div>
           <div className="text-right">
-            <div className="label-tiny">Sentinel uptime</div>
+            <div className="label-tiny">Session time</div>
             <div className="mono text-sm tabular-nums">{fmtUptime(uptime)}</div>
           </div>
         </div>
@@ -388,7 +477,7 @@ const PatientMonitor = () => {
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" />
-                <div className="label-tiny">Live acoustic + anomaly stream</div>
+                <div className="label-tiny">Acoustic stream (benchmark)</div>
                 {audioHasSignal && (
                   <span className="mono text-[9px] bg-primary/15 text-primary border border-primary/30 rounded px-1.5 py-0.5 ml-1">
                     LIVE MIC
@@ -417,7 +506,7 @@ const PatientMonitor = () => {
                   <div className="text-center">
                     <div className="mono text-xs font-semibold text-muted-foreground/70">No signal</div>
                     <div className="mono text-[10px] text-muted-foreground/50 mt-0.5">
-                      Click <span className="text-primary">Start mic</span> to begin acoustic monitoring
+                      Click <span className="text-primary">Start mic</span> to run the benchmark
                     </div>
                   </div>
                 </div>
@@ -449,6 +538,27 @@ const PatientMonitor = () => {
           <PointerPanel pointer={pointerState} />
         </div>
       </div>
+
+      {convexUrl ? (
+        <div className="px-8 pb-6 shrink-0 max-w-[1600px] w-full mx-auto">
+          <BenchmarkConvexPanel
+            patientId={patient.id}
+            patientName={patient.name}
+            sessionSeconds={uptime}
+            metrics={benchmarkMetrics}
+            mastermindAudioSnapshot={mastermindAudioSnapshot}
+            geminiSnippet={lastGemini}
+            audioActive={audioHasSignal}
+          />
+        </div>
+      ) : (
+        <div className="px-8 pb-4 text-xs text-muted-foreground max-w-3xl">
+          Connect Convex to save benchmarks and compare with patient journals: run{" "}
+          <code className="text-[10px] bg-muted px-1 rounded">npx convex dev</code> — this sets{" "}
+          <code className="text-[10px] bg-muted px-1 rounded">VITE_CONVEX_URL</code> in{" "}
+          <code className="text-[10px] bg-muted px-1 rounded">.env.local</code>. Use the same URL in the iOS app.
+        </div>
+      )}
 
       {/* ── Trigger overlay ── */}
       {triggered && reasoning && (

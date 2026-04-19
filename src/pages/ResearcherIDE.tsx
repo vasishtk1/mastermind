@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Activity, Brain, Crosshair, Loader2, Rocket, Save, TrendingUp, Waves, Wind, Zap } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Activity, Brain, Crosshair, FlaskConical, Loader2, Microscope, Rocket, Save, TrendingUp, Waves, Wind, Zap } from "lucide-react";
+import { EvalAuditContent } from "@/components/research/EvalAuditContent";
 import { PROFILES, FEATURE_EXPLAINERS } from "@/lib/ember-mock";
 import type { Profile, RadarMetrics, TriggerCategory } from "@/lib/ember-types";
 import { useEmberData } from "@/context/EmberClinicalContext";
@@ -35,6 +37,8 @@ const toArray = (r: RadarMetrics) => RADAR_KEYS.map((k) => r[k]);
 const fmtDelta = (delta: number) => `${delta >= 0 ? "+" : ""}${Math.round(delta)}`;
 
 const ResearcherIDE = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const labTab = searchParams.get("tab") === "eval" ? "eval" : "design";
   const { patients } = useEmberData();
   const [text, setText] = useState("");
   const [patientId, setPatientId] = useState(() => patients[0]?.id ?? "");
@@ -95,7 +99,50 @@ const ResearcherIDE = () => {
   const isReference = !generated;
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
+    <div className="h-screen flex flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b border-border bg-card/80 px-6 py-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-primary">
+            <FlaskConical className="w-5 h-5" />
+            <span className="mono text-[10px] tracking-[0.2em] uppercase">Ember research lab</span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">
+            One workspace: translate clinical observations into acoustic profiles, then run the same Gemini RAG checks you ship
+            to production.
+          </p>
+        </div>
+        <div className="flex rounded-lg border border-border bg-background p-1 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setSearchParams({})}
+            className={cn(
+              "px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-colors",
+              labTab === "design" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Microscope className="w-4 h-4" />
+            Neuroscience &amp; profiles
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchParams({ tab: "eval" })}
+            className={cn(
+              "px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-colors",
+              labTab === "eval" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Brain className="w-4 h-4" />
+            RAG evaluation &amp; safety
+          </button>
+        </div>
+      </header>
+
+      {labTab === "eval" ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <EvalAuditContent />
+        </div>
+      ) : (
+    <div className="flex-1 flex min-h-0 overflow-hidden">
       <div className="basis-[30%] max-w-[460px] min-w-[360px] shrink-0 border-r border-border overflow-y-auto p-7 space-y-5 bg-card">
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-foreground">New clinical observation</h1>
@@ -224,6 +271,8 @@ const ResearcherIDE = () => {
           })}
         </div>
       </div>
+    </div>
+      )}
     </div>
   );
 };
@@ -440,7 +489,7 @@ const GeneratedCard = ({ profile, onChange }: { profile: Profile; onChange: (p: 
           className="text-sm rounded-md py-2 flex items-center justify-center gap-2 font-semibold transition-colors text-[#1B1D20]"
           style={{ background: "linear-gradient(120deg, #E27533 0%, #D6975A 100%)" }}
         >
-          <Rocket className="w-3.5 h-3.5" /> Deploy to sentinel
+          <Rocket className="w-3.5 h-3.5" /> Deploy to benchmark
         </button>
       </div>
     </div>

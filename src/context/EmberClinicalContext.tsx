@@ -10,7 +10,6 @@ import {
   type SetStateAction,
 } from "react";
 import { PATIENTS } from "@/lib/ember-mock";
-import { MOCK_AUDIT_METRICS, type AuditMetricSnapshot } from "@/lib/ember-clinical-mock";
 import { MOCK_INCIDENTS } from "@/lib/incident-mock";
 import type { IncidentReport, Patient } from "@/lib/ember-types";
 
@@ -77,7 +76,6 @@ export type EmberClinicalContextValue = {
   incidents: IncidentReport[];
   setIncidents: Dispatch<SetStateAction<IncidentReport[]>>;
   updateIncident: (incident: IncidentReport) => void;
-  auditMetrics: AuditMetricSnapshot[];
   lastViewedPatientId: string | null;
   setLastViewedPatientId: (id: string | null) => void;
   touchPatientProfile: (patientId: string) => void;
@@ -149,7 +147,6 @@ export function EmberClinicalProvider({ children }: { children: ReactNode }) {
       incidents,
       setIncidents,
       updateIncident,
-      auditMetrics: MOCK_AUDIT_METRICS,
       lastViewedPatientId,
       setLastViewedPatientId,
       touchPatientProfile,

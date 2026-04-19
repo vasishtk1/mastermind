@@ -23,6 +23,10 @@ dist
 dist-ssr
 *.local
 
+# Local agent / IDE bundles (not app source)
+.agents/
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

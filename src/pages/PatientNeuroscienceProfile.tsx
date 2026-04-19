@@ -200,7 +200,7 @@ export default function PatientNeuroscienceProfile() {
         <Button variant="ghost" size="sm" className="gap-2 -ml-2" asChild>
           <Link to="/dashboard">
             <ArrowLeft className="w-4 h-4" />
-            Triage
+            Dashboard
           </Link>
         </Button>
         <div className="h-6 w-px bg-border hidden sm:block" />

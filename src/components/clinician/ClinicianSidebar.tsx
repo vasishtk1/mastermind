@@ -1,18 +1,14 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { Brain, HeartPulse, LayoutGrid, ShieldCheck, Users } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
+import { FlaskConical, HeartPulse, LayoutGrid, Users } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useEmberData } from "@/context/EmberClinicalContext";
 import { cn } from "@/lib/utils";
 
 const activeRing =
   "border-primary text-primary bg-gradient-to-br from-primary/20 to-amber-500/10 shadow-[0_0_14px_rgba(226,117,51,0.28)]";
 
 export const ClinicianSidebar = () => {
-  const { patients, lastViewedPatientId } = useEmberData();
   const location = useLocation();
-  const brainTarget = lastViewedPatientId ?? patients[0]?.id ?? "";
-  const profilePath = brainTarget ? `/patients/${brainTarget}/profile` : "/patients";
-  const profileActive = /^\/patients\/[^/]+\/profile/.test(location.pathname);
+  const labActive = location.pathname.startsWith("/research");
 
   const navBtn = (isActive: boolean) =>
     cn(
@@ -34,12 +30,12 @@ export const ClinicianSidebar = () => {
       <TooltipProvider delayDuration={120}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink to="/dashboard" className={({ isActive }) => navBtn(isActive)} aria-label="Triage dashboard">
+            <NavLink to="/dashboard" className={({ isActive }) => navBtn(isActive)} aria-label="Incidents dashboard">
               <LayoutGrid className="w-5 h-5" />
             </NavLink>
           </TooltipTrigger>
           <TooltipContent side="right" className="font-sans text-xs">
-            Triage · Escalation queue
+            Incidents
           </TooltipContent>
         </Tooltip>
 
@@ -56,49 +52,26 @@ export const ClinicianSidebar = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink
-              to={profilePath}
-              className={() => navBtn(profileActive)}
-              aria-label="Neuroscience and RAG review"
-            >
-              <Brain className="w-5 h-5" />
-            </NavLink>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-sans text-xs">
-            Neuroscience &amp; RAG review
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <NavLink to="/sentinel" className={({ isActive }) => navBtn(isActive)} aria-label="Live patient monitor">
+            <NavLink to="/benchmarking" className={({ isActive }) => navBtn(isActive)} aria-label="Benchmarking">
               <HeartPulse className="w-5 h-5" />
             </NavLink>
           </TooltipTrigger>
           <TooltipContent side="right" className="font-sans text-xs">
-            Live monitor
+            Benchmarking
           </TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink to="/auditing" className={({ isActive }) => navBtn(isActive)} aria-label="Model rigor">
-              <ShieldCheck className="w-5 h-5" />
+            <NavLink to="/research" className={() => navBtn(labActive)} aria-label="Ember Research Lab">
+              <FlaskConical className="w-5 h-5" />
             </NavLink>
           </TooltipTrigger>
-          <TooltipContent side="right" className="font-sans text-xs">
-            Model rigor &amp; auditing
+          <TooltipContent side="right" className="font-sans text-xs max-w-[15rem]">
+            Ember Research Lab — neuroscience design + RAG evaluation &amp; safety (same workspace)
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-
-      <Link
-        to="/research"
-        className="mt-3 mono text-[9px] text-primary/70 hover:text-primary text-center leading-tight px-1 max-w-[52px]"
-        title="Researcher IDE"
-      >
-        Research IDE
-      </Link>
 
       <div className="mt-auto mono text-[9px] text-muted-foreground/60 tracking-widest [writing-mode:vertical-rl]">
         EMBER
