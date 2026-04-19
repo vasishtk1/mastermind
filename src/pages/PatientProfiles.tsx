@@ -131,6 +131,7 @@ const AddPatientDialog = ({
   const [condition, setCondition] = useState("");
   const [clinician, setClinician] = useState("");
   const [accent, setAccent] = useState<Patient["accent"]>("teal");
+  const [patientId, setPatientId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<PatientFormField, string>>>({});
 
   useEffect(() => {
@@ -140,6 +141,7 @@ const AddPatientDialog = ({
     setCondition("");
     setClinician("");
     setAccent("teal");
+    setPatientId("");
     setFieldErrors({});
   }, [open]);
 
@@ -150,7 +152,7 @@ const AddPatientDialog = ({
       return;
     }
     onAdd({
-      id: newPatientId(),
+      id: patientId.trim() || newPatientId(),
       name: name.trim(),
       initials: initialsFromName(name),
       dob,
@@ -234,6 +236,18 @@ const AddPatientDialog = ({
               }}
             />
             {fieldErrors.clinician && <p className="text-xs text-danger">{fieldErrors.clinician}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="add-patient-id">
+              Patient ID <span className="text-muted-foreground text-xs">(optional — leave blank to auto-generate)</span>
+            </Label>
+            <Input
+              id="add-patient-id"
+              autoComplete="off"
+              placeholder="e.g. pat-test-1"
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="add-patient-accent">List accent</Label>

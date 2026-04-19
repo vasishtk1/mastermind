@@ -6,36 +6,142 @@ an intermediate dict conversion.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class IncomingDeviceEvent(BaseModel):
     """Structured payload sent by the on-device Cactus engine.
 
+    Accepts both the canonical FastAPI field names and the iOS camelCase
+    variants that arrive after Swift's .convertToSnakeCase encoding:
+
+      iOS field            → canonical field
+      ─────────────────────────────────────────
+      device_timestamp     → timestamp
+      patient_stabilized   → stabilized_flag
+      distress_level (int) → pre_intervention_mfcc_variance (float 0–1)
+
     Raw audio never leaves the device. Only derived metrics and the
     AI-generated intervention transcript are transmitted.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     timestamp: datetime
     patient_id: str
     pre_intervention_mfcc_variance: float = Field(
-        ...,
+        default=0.0,
         ge=0.0,
         le=1.0,
-        description="MFCC variance captured immediately before the intervention triggered (0–1 normalised).",
+        description="MFCC variance before intervention (0–1). Derived from distress_level when absent.",
     )
     intervention_transcript: str = Field(
-        ...,
+        default="",
         description="Full text of the on-device AI's spoken intervention.",
     )
     stabilized_flag: bool = Field(
-        ...,
-        description="True if the on-device model determined the patient returned to baseline within the intervention window.",
+        default=False,
+        description="True if the on-device model determined the patient returned to baseline.",
     )
+
+    # iOS-only extras — stored for audit but not used by the RAG pipeline.
+    trigger_reason: Optional[str] = None
+    distress_level: Optional[int] = None
+    intervention_used: Optional[str] = None
+    cloud_inference_used: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_ios_fields(cls, data: Any) -> Any:
+        """Map iOS snake_case aliases to canonical field names."""
+        if not isinstance(data, dict):
+            return data
+
+        # device_timestamp (str ISO-8601) → timestamp
+        if "device_timestamp" in data and "timestamp" not in data:
+            data["timestamp"] = data.pop("device_timestamp")
+
+        # patient_stabilized → stabilized_flag
+        if "patient_stabilized" in data and "stabilized_flag" not in data:
+            data["stabilized_flag"] = data.pop("patient_stabilized")
+
+        # distress_level (int 0–10) → pre_intervention_mfcc_variance (float 0–1)
+        if "pre_intervention_mfcc_variance" not in data and "distress_level" in data:
+            try:
+                data["pre_intervention_mfcc_variance"] = min(
+                    max(float(data["distress_level"]) / 10.0, 0.0), 1.0
+                )
+            except (TypeError, ValueError):
+                data["pre_intervention_mfcc_variance"] = 0.0
+
+        return data
+
+
+# ---------------------------------------------------------------------------
+# iOS incident payload  (POST /api/incidents from APIService.uploadIncident)
+# ---------------------------------------------------------------------------
+
+class AudioBiometrics(BaseModel):
+    """14-field audio feature vector produced by Ember's on-device pipeline.
+
+    Field names match the Convex ``audioBiometricsValue`` validator exactly so
+    the dict can be forwarded to ``incidents:ingest`` without transformation.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    breath_rate: float
+    duration_sec: float
+    fundamental_frequency_hz: float
+    jitter_approx: float
+    mfcc_1_to_13: List[float] = Field(..., min_length=13, max_length=13)
+    mfcc_deviation: float
+    pitch_escalation: float
+    rms: float
+    sample_rate_hz: float
+    shimmer_approx: float
+    spectral_centroid: float
+    spectral_flux: float
+    spectral_rolloff: float
+    zcr_density: float
+
+
+class IncidentBiometrics(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    audio: Optional[AudioBiometrics] = None
+    facial: Optional[Dict[str, Any]] = None
+    telemetry_snapshot: Optional[Dict[str, Any]] = None
+
+
+class IncidentModelMeta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    gemma_action: str = ""
+    gemma_success: Optional[bool] = None
+    gemma_total_time_ms: Optional[float] = None
+
+
+class IncomingIncidentPayload(BaseModel):
+    """Full incident payload from APIService.uploadIncident() on iOS.
+
+    Carries the Gemma biometric JSON (biometrics.audio) plus facial stress
+    scores, Gemma metadata, and the free-text journal note.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    patient_id: Optional[str] = None
+    text: str = ""
+    journal_kind: Optional[str] = None
+    biometrics: Optional[IncidentBiometrics] = None
+    model: Optional[IncidentModelMeta] = None
+    context: Optional[Dict[str, Any]] = None
+    facial_data: Optional[Dict[str, Any]] = None
+    gemma_action: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class ClinicalIncidentReport(BaseModel):

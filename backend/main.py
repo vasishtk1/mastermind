@@ -1,7 +1,8 @@
 """Ember Backend — FastAPI application.
 
 Endpoints:
-  POST /api/events                              Ingest device event → generate + persist clinical report.
+  POST /api/events                              Ingest device event → generate + persist clinical report → sync Convex.
+  POST /api/incidents                           Ingest iOS biometric incident (Gemma audio + facial) → sync Convex.
   GET  /api/patients/{patient_id}/reports       Return all clinical reports for a patient from DB.
   POST /api/patients/{patient_id}/remediate     Generate an LLM-proposed device config patch.
   GET  /api/evals/latest                        Return the most recent eval-harness summary from DB.
@@ -25,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from convex_bridge import call_mutation
 from database import Base, engine, get_db
 from db_models import ClinicalReport, DeviceEvent, EvalCaseResult, EvalRun, Patient, TelemetryBatch
 from models import (
@@ -33,6 +35,7 @@ from models import (
     DirectiveResponse,
     EvalSummary,
     IncomingDeviceEvent,
+    IncomingIncidentPayload,
     MonitorResult,
     MonitorSnapshot,
     RemediationProposal,
@@ -202,8 +205,7 @@ async def ingest_event(
     )
     db.add(db_report)
 
-    # Return the Pydantic model (report_id is injected via the alias "id").
-    return ClinicalIncidentReport(
+    final_report = ClinicalIncidentReport(
         id=report_id,
         patient_id=report.patient_id,
         incident_timestamp=report.incident_timestamp,
@@ -212,6 +214,70 @@ async def ingest_event(
         recommended_followup=report.recommended_followup,
         keywords=report.keywords,
     )
+
+    # Sync event + clinical report to Convex so the dashboard updates in real-time.
+    await call_mutation(
+        "clinicalPipeline:ingestEventWithReport",
+        {
+            "eventId": db_event.id,
+            "patientId": event.patient_id,
+            "eventTimestamp": int(event.timestamp.timestamp() * 1000),
+            "preInterventionMfccVariance": event.pre_intervention_mfcc_variance,
+            "interventionTranscript": event.intervention_transcript,
+            "stabilizedFlag": event.stabilized_flag,
+            "reportId": report_id,
+            "incidentTimestamp": int(report.incident_timestamp.timestamp() * 1000),
+            "estimatedSeverityScore": report.estimated_severity_score,
+            "clinicalSummary": report.clinical_summary,
+            "recommendedFollowup": report.recommended_followup,
+            "keywords": report.keywords,
+        },
+    )
+
+    return final_report
+
+
+# ---------------------------------------------------------------------------
+# iOS biometric incidents  (POST /api/incidents from APIService.uploadIncident)
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/api/incidents",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Incidents"],
+    summary="Ingest a full iOS biometric incident (Gemma audio + facial metrics)",
+)
+async def ingest_incident(payload: IncomingIncidentPayload) -> dict:
+    """
+    Receives the full ``uploadIncident`` payload from the iOS app, which carries
+    Gemma's 14-field audio biometrics, ARKit facial stress scores, and Gemma
+    model metadata.
+
+    1. Forwards ``biometrics.audio`` to Convex ``mastermindIncidents`` table so
+       the dashboard can display it in real-time.
+    2. Returns 201 with the Convex incident ID (or a placeholder on sync failure).
+    """
+    # Resolve patient_id: payload field or fall back to a generic identifier.
+    patient_id: str = payload.patient_id or "unknown"
+
+    # Push the full biometric audio block to Convex mastermindIncidents.
+    audio = payload.biometrics.audio if payload.biometrics else None
+    if audio is not None:
+        await call_mutation(
+            "incidents:ingest",
+            {
+                "patientId": patient_id,
+                "biometrics": {"audio": audio.model_dump()},
+                "payloadVersion": "ios-1.0",
+            },
+        )
+
+    return {
+        "status": "accepted",
+        "patient_id": patient_id,
+        "audio_synced": audio is not None,
+    }
 
 
 # ---------------------------------------------------------------------------

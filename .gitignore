@@ -4,6 +4,11 @@ backend/.env
 __pycache__/
 *.pyc
 
+# Python virtual environment
+venv/
+backend/venv/
+.venv/
+
 # SQLite database (generated at runtime)
 *.db
 *.db-shm
