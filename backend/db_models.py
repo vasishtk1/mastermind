@@ -11,8 +11,11 @@ All primary keys are UUID strings generated at insert time so rows are
 globally unique without relying on SQLite's auto-increment.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy import (
     JSON,
@@ -48,8 +51,8 @@ class Patient(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_uuid)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    dialect_group: Mapped[str | None] = mapped_column(String, nullable=True)
-    baseline_mfcc: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dialect_group: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    baseline_mfcc: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -86,7 +89,7 @@ class DeviceEvent(Base):
     )
 
     patient: Mapped["Patient"] = relationship(back_populates="events")
-    report: Mapped["ClinicalReport | None"] = relationship(
+    report: Mapped[Optional["ClinicalReport"]] = relationship(
         back_populates="event", uselist=False
     )
 
@@ -188,7 +191,7 @@ class EvalCaseResult(Base):
     dialect_group: Mapped[str] = mapped_column(String, nullable=False)
     # True = this case was expected to be flagged HIGH severity
     expected_severity: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    actual_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    actual_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # True = the model produced the correct verdict for this case
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
