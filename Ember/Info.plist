@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>LSApplicationCategoryType</key>
+	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -27,14 +29,22 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>APIBaseURL</key>
-	<string>http://127.0.0.1:8000</string>
+	<string>http://127.0.0.1:8001</string>
 	<key>EmberBackendSyncEnabled</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ember analyzes microphone audio on-device to detect distress and support you during difficult moments.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>We use your camera and microphone to track distress signals </string>
+	<key>APIBaseURLDevice</key>
+	<string>http://172.17.21.250:8001</string>
+	<key>ConvexURL</key>
+	<string>https://acoustic-minnow-665.convex.cloud</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

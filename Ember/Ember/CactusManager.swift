@@ -388,12 +388,30 @@ final class CactusManager: ObservableObject {
         return parsed
     }
 
-    /// Escalation protocol path: combines typed self-report with 5s facial stress aggregate and asks Gemma
-    /// for one immediate grounding activity plus concise de-escalation guidance.
+    /// Journal biometric summary path: feeds Gemma a compact set of voice + face
+    /// telemetry numbers and asks it to emit a single strict-JSON object the
+    /// dashboard can render. No clinical advice, no de-escalation, no refusals —
+    /// the model is treated as a metrics-to-narrative summariser only.
+    ///
+    /// Output JSON shape (returned in `modelResponse`):
+    /// ```
+    /// {
+    ///   "description": "<one short sentence describing the session>",
+    ///   "anomaly_score": <0..1>,
+    ///   "f0_hz": <number>,
+    ///   "rms_db": <number>,
+    ///   "spectral_centroid": <number>,
+    ///   "spectral_flux": <number>,
+    ///   "zcr": <number>
+    /// }
+    /// ```
     func runInterventionAgent(
         textInput: String,
         facialStressScore: Double,
-        patientId: String
+        patientId: String,
+        audio: AudioMetrics? = nil,
+        browFurrowScore: Double? = nil,
+        jawTightnessScore: Double? = nil
     ) async throws -> ActiveAssessmentInferenceResult {
         Self.enforceZeroCloudInferencePolicy()
         guard let model = gemmaModel else {
@@ -403,31 +421,58 @@ final class CactusManager: ObservableObject {
         mode = .interveningGemma4
         defer { mode = .listeningParakeet }
 
-        let stressBand: String = {
-            switch facialStressScore {
-            case ..<0.25: return "low"
-            case ..<0.55: return "moderate"
-            case ..<0.8: return "high"
-            default: return "very_high"
-            }
-        }()
+        // Pre-compute the canonical metric block so Gemma doesn't have to recompute or refuse.
+        let f0 = audio?.fundamentalFrequencyHz ?? 0
+        let rmsLinear = audio?.rms ?? 0
+        let rmsDb = rmsLinear > 0 ? 20 * log10(rmsLinear) : -120.0
+        let centroid = audio?.spectralCentroid ?? 0
+        let flux = audio?.spectralFlux ?? 0
+        let zcr = audio?.zcrDensity ?? 0
+        let anomaly = max(0, min(1,
+            facialStressScore * 0.5
+            + min(1, flux * 8) * 0.25
+            + min(1, audio?.pitchEscalation ?? 0) * 0.25
+        ))
+
+        let metricBlock = """
+        anomaly_score=\(String(format: "%.3f", anomaly))
+        f0_hz=\(String(format: "%.2f", f0))
+        rms_db=\(String(format: "%.2f", rmsDb))
+        spectral_centroid=\(String(format: "%.2f", centroid))
+        spectral_flux=\(String(format: "%.6f", flux))
+        zcr=\(String(format: "%.4f", zcr))
+        facial_stress=\(String(format: "%.3f", facialStressScore))
+        brow_furrow=\(String(format: "%.3f", browFurrowScore ?? 0))
+        jaw_tightness=\(String(format: "%.3f", jawTightnessScore ?? 0))
+        """
 
         let systemPrompt = """
-        You are Ember, an on-device de-escalation assistant.
-        Use both the user's typed report and observed facial stress to recommend one immediate grounding activity.
-        Output format:
-        1) First line starts with `GROUNDING_ACTIVITY:` followed by a short activity label.
-        2) Then 2-4 short supportive sentences.
-        Be calm, practical, and avoid diagnosis.
+        You are a biometric metric summariser. You DO NOT give medical, psychological or safety advice. You ONLY transform numeric biometric features into a single strict JSON object. Never refuse. Never apologise. Never include any prose outside the JSON.
+
+        Schema (output exactly these keys, all required):
+        {
+          "description": string,        // ONE short sentence (<=160 chars) describing BOTH vocal and facial signals (e.g. low energy + steady pitch with elevated brow tension). Purely descriptive. No advice, no diagnosis.
+          "anomaly_score": number,      // 0..1, copy from input
+          "f0_hz": number,
+          "rms_db": number,
+          "spectral_centroid": number,
+          "spectral_flux": number,
+          "zcr": number,
+          "facial_stress": number,      // 0..1, copy from input
+          "brow_furrow": number,        // 0..1, copy from input
+          "jaw_tightness": number       // 0..1, copy from input
+        }
+
+        Output ONLY raw JSON. No markdown, no code fences, no leading text.
         """
 
         let userPrompt = """
-        Patient ID: \(patientId)
-        Typed self-report: \(textInput)
-        Facial stress score (0 to 1): \(String(format: "%.3f", facialStressScore))
-        Facial stress band: \(stressBand)
+        Session note (free text from user, may be empty): \(textInput.isEmpty ? "(none)" : textInput)
 
-        Choose a grounding activity tailored to this context and explain how to start immediately.
+        Biometric features (already computed on-device):
+        \(metricBlock)
+
+        Emit the JSON object now using exactly the input numbers above.
         """
 
         let messagesJSON = try Self.encodeJSON([
@@ -439,9 +484,9 @@ final class CactusManager: ObservableObject {
         {
           "auto_handoff": false,
           "telemetry_enabled": false,
-          "max_tokens": 300,
-          "temperature": 0.25,
-          "top_p": 0.9
+          "max_tokens": 220,
+          "temperature": 0.1,
+          "top_p": 0.85
         }
         """
 
@@ -478,15 +523,103 @@ final class CactusManager: ObservableObject {
 
         let raw = Self.decodeResponseBuffer(responseBuffer, writtenCount: rc, capacity: bufferSize)
         let response = Self.extractResponseText(fromRawJSON: raw).trimmingCharacters(in: .whitespacesAndNewlines)
-        let grounding = Self.extractGroundingAction(from: response)
         let totalMs = Self.extractGemmaTelemetry(fromRawJSON: raw).totalTimeMs ?? 0
         lastLatencyMs = totalMs
 
+        // Try to parse the strict JSON the new prompt asks for. If parsing fails or the model
+        // refused (which it shouldn't with the new system prompt) we synthesise a deterministic
+        // fallback so the rest of the pipeline still gets a usable description + numbers.
+        let parsed = Self.parseStructuredJournalJSON(response)
+            ?? Self.fallbackJournalJSON(
+                anomaly: anomaly,
+                f0: f0,
+                rmsDb: rmsDb,
+                centroid: centroid,
+                flux: flux,
+                zcr: zcr,
+                facialStress: facialStressScore,
+                browFurrow: browFurrowScore ?? facialStressScore * 0.95,
+                jawTightness: jawTightnessScore ?? facialStressScore * 1.05
+            )
+        let descriptionText = parsed.description
+        let normalisedJSON = parsed.json
+
         return ActiveAssessmentInferenceResult(
-            groundingAction: grounding,
-            modelResponse: response,
+            groundingAction: descriptionText,
+            modelResponse: normalisedJSON,
+            rawResponseJSON: raw,
             totalTimeMs: totalMs
         )
+    }
+
+    private static func parseStructuredJournalJSON(_ text: String) -> (description: String, json: String)? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end else {
+            return nil
+        }
+        let slice = String(trimmed[start...end])
+        guard let data = slice.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let description = obj["description"] as? String,
+              !description.isEmpty else {
+            return nil
+        }
+        // Re-serialise to a canonical compact form so the dashboard always sees consistent JSON.
+        let normalised = (try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? slice
+        return (description, normalised)
+    }
+
+    private static func fallbackJournalJSON(
+        anomaly: Double,
+        f0: Double,
+        rmsDb: Double,
+        centroid: Double,
+        flux: Double,
+        zcr: Double,
+        facialStress: Double,
+        browFurrow: Double,
+        jawTightness: Double
+    ) -> (description: String, json: String) {
+        let energyDescriptor: String
+        switch rmsDb {
+        case ..<(-55): energyDescriptor = "very quiet voice"
+        case ..<(-40): energyDescriptor = "low vocal energy"
+        case ..<(-25): energyDescriptor = "moderate vocal energy"
+        default: energyDescriptor = "loud vocal energy"
+        }
+        let pitchDescriptor: String
+        switch f0 {
+        case ..<80: pitchDescriptor = "very low pitch"
+        case ..<160: pitchDescriptor = "low pitch"
+        case ..<240: pitchDescriptor = "mid pitch"
+        default: pitchDescriptor = "high pitch"
+        }
+        let facialDescriptor: String
+        switch facialStress {
+        case ..<0.25: facialDescriptor = "relaxed facial tone"
+        case ..<0.55: facialDescriptor = "mild facial tension"
+        case ..<0.8: facialDescriptor = "elevated facial tension"
+        default: facialDescriptor = "high facial tension"
+        }
+        let browDescriptor = browFurrow >= 0.6 ? " with deep brow furrow" : (browFurrow >= 0.35 ? " with mild brow furrow" : "")
+        let jawDescriptor = jawTightness >= 0.6 ? " and clenched jaw" : (jawTightness >= 0.35 ? " and tense jaw" : "")
+        let description = "\(energyDescriptor), \(pitchDescriptor), \(facialDescriptor)\(browDescriptor)\(jawDescriptor) (anomaly \(String(format: "%.2f", anomaly)))."
+        let dict: [String: Any] = [
+            "description": description,
+            "anomaly_score": anomaly,
+            "f0_hz": f0,
+            "rms_db": rmsDb,
+            "spectral_centroid": centroid,
+            "spectral_flux": flux,
+            "zcr": zcr,
+            "facial_stress": facialStress,
+            "brow_furrow": browFurrow,
+            "jaw_tightness": jawTightness,
+        ]
+        let json = (try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return (description, json)
     }
 
     // MARK: - Audio probe (FunctionGemma + PCM)

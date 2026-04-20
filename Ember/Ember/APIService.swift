@@ -6,6 +6,7 @@ final class APIService: ObservableObject {
     private let session: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let candidateBaseURLs: [URL]
 
     let baseURL: URL
 
@@ -23,20 +24,34 @@ final class APIService: ObservableObject {
 
         self.decoder = JSONDecoder()
         self.decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        var candidates: [URL] = [baseURL]
+        if let host = baseURL.host?.lowercased(),
+           host == "127.0.0.1" || host == "localhost",
+           let port = baseURL.port {
+            if port == 8000, let alt = URL(string: "\(baseURL.scheme ?? "http")://\(host):8001") {
+                candidates.append(alt)
+            } else if port == 8001, let alt = URL(string: "\(baseURL.scheme ?? "http")://\(host):8000") {
+                candidates.append(alt)
+            }
+        }
+        var deduped: [URL] = []
+        for candidate in candidates where !deduped.contains(candidate) {
+            deduped.append(candidate)
+        }
+        self.candidateBaseURLs = deduped
     }
 
     // MARK: - Push
 
     func uploadEvent(event: IncomingDeviceEvent) async throws {
-        let url = baseURL.appendingPathComponent("api/events")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try encoder.encode(event)
-
-        let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
+        let body = try encoder.encode(event)
+        let (_, http) = try await performRequest(relativePath: "api/events") { url in
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+            return request
         }
         guard (200..<300).contains(http.statusCode) else {
             throw NSError(
@@ -48,6 +63,7 @@ final class APIService: ObservableObject {
     }
 
     func uploadIncident(
+        patientId: String,
         text: String,
         facialData: [String: Double],
         gemmaAction: String,
@@ -55,14 +71,10 @@ final class APIService: ObservableObject {
         journalKind: JournalEntryKind? = nil,
         gemmaSuccess: Bool? = nil,
         gemmaLatencyMs: Double? = nil,
+        gemmaRawResponseJSON: String? = nil,
         telemetrySnapshot: TelemetryBatchPayload? = nil,
         extraContext: [String: Any]? = nil
     ) async throws {
-        let url = baseURL.appendingPathComponent("api/incidents")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let biometrics: [String: Any] = [
             "facial": facialData,
             "audio": audioMetrics.map(audioMetricsDictionary) ?? NSNull(),
@@ -71,8 +83,10 @@ final class APIService: ObservableObject {
         var model: [String: Any] = ["gemma_action": gemmaAction]
         if let gemmaSuccess { model["gemma_success"] = gemmaSuccess }
         if let gemmaLatencyMs { model["gemma_total_time_ms"] = gemmaLatencyMs }
+        if let gemmaRawResponseJSON { model["gemma_raw_response_json"] = gemmaRawResponseJSON }
 
         let body: [String: Any] = [
+            "patient_id": patientId,
             "text": text,
             "journal_kind": journalKind?.rawValue ?? NSNull(),
             "biometrics": biometrics,
@@ -87,10 +101,15 @@ final class APIService: ObservableObject {
             print("[MasterMind][DoctorPayload][Incident]\n\(payloadText)")
             NSLog("[MasterMind][DoctorPayload][Incident] %@", payloadText)
         }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-
-        let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        let requestBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        let (_, http) = try await performRequest(relativePath: "api/incidents") { url in
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = requestBody
+            return request
+        }
+        guard (200..<300).contains(http.statusCode) else {
             throw NSError(domain: "APIService", code: 500, userInfo: [NSLocalizedDescriptionKey: "POST /api/incidents failed"])
         }
     }
@@ -101,12 +120,7 @@ final class APIService: ObservableObject {
         journalKind: JournalEntryKind,
         noteText: String
     ) async throws {
-        let url = baseURL.appendingPathComponent("api/journals/upload")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-
         let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         let mimeType: String = {
             if let type = UTType(filenameExtension: fileURL.pathExtension.lowercased()) {
@@ -136,10 +150,14 @@ final class APIService: ObservableObject {
         body.append(fileData)
         body.append("\r\n".data(using: .utf8)!)
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        request.httpBody = body
-        let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        let (_, http) = try await performRequest(relativePath: "api/journals/upload") { url in
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+            return request
+        }
+        guard (200..<300).contains(http.statusCode) else {
             throw NSError(
                 domain: "APIService",
                 code: 500,
@@ -179,18 +197,12 @@ final class APIService: ObservableObject {
 
     func fetchClinicianProfile(patientId: String) async throws -> ClinicianProfile {
         let safePatientId = patientId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? patientId
-        let url = baseURL
-            .appendingPathComponent("api")
-            .appendingPathComponent("patients")
-            .appendingPathComponent(safePatientId)
-            .appendingPathComponent("profile")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
+        let path = "api/patients/\(safePatientId)/profile"
+        let (data, http) = try await performRequest(relativePath: path) { url in
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            return request
         }
         guard (200..<300).contains(http.statusCode) else {
             throw NSError(
@@ -204,18 +216,12 @@ final class APIService: ObservableObject {
 
     func fetchClinicianDirectives(patientId: String) async throws -> [ClinicianDirective] {
         let safePatientId = patientId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? patientId
-        let url = baseURL
-            .appendingPathComponent("api")
-            .appendingPathComponent("patients")
-            .appendingPathComponent(safePatientId)
-            .appendingPathComponent("directives")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
+        let path = "api/patients/\(safePatientId)/directives"
+        let (data, http) = try await performRequest(relativePath: path) { url in
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            return request
         }
         guard (200..<300).contains(http.statusCode) else {
             throw NSError(
@@ -225,5 +231,66 @@ final class APIService: ObservableObject {
             )
         }
         return try decoder.decode([ClinicianDirective].self, from: data)
+    }
+
+    private func performRequest(
+        relativePath: String,
+        requestBuilder: (URL) -> URLRequest
+    ) async throws -> (Data, HTTPURLResponse) {
+        var lastError: Error?
+        var attempted: [String] = []
+        for base in candidateBaseURLs {
+            let url = base.appendingPathComponent(relativePath)
+            attempted.append(url.absoluteString)
+            do {
+                let (data, response) = try await session.data(for: requestBuilder(url))
+                guard let http = response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                return (data, http)
+            } catch {
+                lastError = error
+                if shouldRetryOnAlternateBase(error: error) {
+                    continue
+                }
+                throw error
+            }
+        }
+        if let urlError = lastError as? URLError, urlError.code == .cannotConnectToHost {
+            let hint: String
+            if Self.isPhysicalDeviceLoopback(baseURL: baseURL) {
+                hint = "Could not connect to local backend from this iPhone. Set Info.plist APIBaseURLDevice to your Mac LAN IP (e.g. http://192.168.1.12:8001)."
+            } else {
+                hint = "Could not connect to backend. Ensure FastAPI is running (currently expected on :8001)."
+            }
+            let attemptedJoined = attempted.joined(separator: ", ")
+            throw NSError(
+                domain: "APIService",
+                code: urlError.errorCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "\(hint) Tried: \(attemptedJoined)"
+                ]
+            )
+        }
+        throw lastError ?? URLError(.cannotConnectToHost)
+    }
+
+    private func shouldRetryOnAlternateBase(error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .timedOut:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isPhysicalDeviceLoopback(baseURL: URL) -> Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        let host = baseURL.host?.lowercased()
+        return host == "127.0.0.1" || host == "localhost"
+        #endif
     }
 }

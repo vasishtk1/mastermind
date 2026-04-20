@@ -116,9 +116,13 @@ struct ActiveAssessmentView: View {
             )
             let facialBundle = scanner.aggregatedBlendShapeScores
             try await env.api.uploadIncident(
+                patientId: env.patientId,
                 text: userText,
                 facialData: facialBundle,
-                gemmaAction: inference.groundingAction
+                gemmaAction: inference.groundingAction,
+                gemmaSuccess: true,
+                gemmaLatencyMs: inference.totalTimeMs,
+                gemmaRawResponseJSON: inference.rawResponseJSON
             )
             resultText = "Suggested grounding activity: \(inference.groundingAction)\n\n\(inference.modelResponse)"
         } catch {

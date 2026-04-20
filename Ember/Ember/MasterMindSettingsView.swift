@@ -25,65 +25,125 @@ struct MasterMindSettingsView: View {
         NavigationStack {
             ZStack {
                 EmberTheme.background.ignoresSafeArea()
-                List {
-                    Section {
+                ScrollView {
+                    VStack(spacing: 18) {
                         EmberCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Patient Settings")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(EmberTheme.textPrimary)
-                                Text("Manage your profile and care-team sync preferences.")
-                                    .font(.footnote)
-                                    .foregroundStyle(EmberTheme.textSecondary)
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(EmberTheme.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(vm.patientName)
+                                        .font(.headline)
+                                        .foregroundStyle(EmberTheme.textPrimary)
+                                    Text(env.patientId)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(EmberTheme.textSecondary)
+                                    Text("MasterMind Daily Plan")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(EmberTheme.accent)
+                                        .padding(.top, 2)
+                                }
+                                Spacer()
+                            }
+                        }
+
+                        groupedCard(title: "Profile") {
+                            row("Email", vm.patientEmail)
+                            divider
+                            row("Phone", vm.patientPhone)
+                            divider
+                            NavigationLink {
+                                EditPatientProfileView(vm: vm)
+                            } label: {
+                                HStack {
+                                    Text("Edit patient profile")
+                                        .font(.subheadline)
+                                        .foregroundStyle(EmberTheme.accent)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(EmberTheme.textSecondary)
+                                }
+                            }
+                        }
+
+                        groupedCard(title: "Care team") {
+                            row("Clinician", vm.clinicianName)
+                            divider
+                            row("Clinic", vm.clinicianClinic)
+                            divider
+                            row("Email", vm.clinicianEmail)
+                            divider
+                            row("Last sync", vm.lastDoctorSync.formatted(date: .abbreviated, time: .shortened))
+                            divider
+                            Button {
+                                vm.runDummySync()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                    Text("Sync with doctor")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(EmberTheme.accent)
+                            }
+                        }
+
+                        groupedCard(title: "Preferences") {
+                            NavigationLink {
+                                ReminderPreferencesView(env: env)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "bell.fill")
+                                        .foregroundStyle(EmberTheme.accent)
+                                    Text("Reminder preferences")
+                                        .font(.subheadline)
+                                        .foregroundStyle(EmberTheme.textPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(EmberTheme.textSecondary)
+                                }
                             }
                         }
                     }
-                    .listRowBackground(Color.clear)
-
-                    Section("Profile") {
-                        row("Name", vm.patientName)
-                        row("Email", vm.patientEmail)
-                        row("Phone", vm.patientPhone)
-                        row("Patient ID", env.patientId)
-                        NavigationLink("Edit patient profile") {
-                            EditPatientProfileView(vm: vm)
-                        }
-                    }
-
-                    Section("Doctor") {
-                        row("Clinician", vm.clinicianName)
-                        row("Clinic", vm.clinicianClinic)
-                        row("Email", vm.clinicianEmail)
-                        row("Last sync", vm.lastDoctorSync.formatted(date: .abbreviated, time: .shortened))
-                        Button("Sync with doctor (dummy)") {
-                            vm.runDummySync()
-                        }
-                        .foregroundStyle(EmberTheme.accent)
-                    }
-
-                    Section("Preferences") {
-                        NavigationLink("Reminder preferences") {
-                            ReminderPreferencesView(env: env)
-                        }
-                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
-                .background(EmberTheme.background)
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 
+    private func groupedCard<Content: View>(title: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(EmberTheme.textSecondary)
+                .padding(.horizontal, 4)
+            EmberCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    content()
+                }
+            }
+        }
+    }
+
+    private var divider: some View {
+        Divider().overlay(EmberTheme.cardBorder)
+    }
+
     private func row(_ key: String, _ value: String) -> some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text(key)
-                .font(.caption2)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(EmberTheme.textSecondary)
             Spacer()
             Text(value)
-                .font(.caption.monospacedDigit())
+                .font(.subheadline.monospacedDigit())
                 .foregroundStyle(EmberTheme.textPrimary)
                 .multilineTextAlignment(.trailing)
         }

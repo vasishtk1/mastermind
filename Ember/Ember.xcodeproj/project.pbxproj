@@ -46,6 +46,8 @@
 		D1200000000000000000001A /* JournalLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001A /* JournalLibraryView.swift */; };
 		D1200000000000000000001B /* MasterMindSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001B /* MasterMindSettingsView.swift */; };
 		D1200000000000000000001C /* MasterMindOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001C /* MasterMindOnboardingView.swift */; };
+		D1200000000000000000001D /* ConvexClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001D /* ConvexClient.swift */; };
+		D1200000000000000000001E /* DirectiveSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1100000000000000000001E /* DirectiveSessionView.swift */; };
 		E12000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E11000000000000000000001 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -92,6 +94,8 @@
 		D1100000000000000000001A /* JournalLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalLibraryView.swift; sourceTree = "<group>"; };
 		D1100000000000000000001B /* MasterMindSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindSettingsView.swift; sourceTree = "<group>"; };
 		D1100000000000000000001C /* MasterMindOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterMindOnboardingView.swift; sourceTree = "<group>"; };
+		D1100000000000000000001D /* ConvexClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexClient.swift; sourceTree = "<group>"; };
+		D1100000000000000000001E /* DirectiveSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectiveSessionView.swift; sourceTree = "<group>"; };
 		E11000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -169,6 +173,8 @@
 				D1100000000000000000001A /* JournalLibraryView.swift */,
 				D1100000000000000000001B /* MasterMindSettingsView.swift */,
 				D1100000000000000000001C /* MasterMindOnboardingView.swift */,
+				D1100000000000000000001D /* ConvexClient.swift */,
+				D1100000000000000000001E /* DirectiveSessionView.swift */,
 			);
 			path = Ember;
 			sourceTree = "<group>";
@@ -288,6 +294,8 @@
 				D1200000000000000000001A /* JournalLibraryView.swift in Sources */,
 				D1200000000000000000001B /* MasterMindSettingsView.swift in Sources */,
 				D1200000000000000000001C /* MasterMindOnboardingView.swift in Sources */,
+				D1200000000000000000001D /* ConvexClient.swift in Sources */,
+				D1200000000000000000001E /* DirectiveSessionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

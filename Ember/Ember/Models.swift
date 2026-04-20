@@ -55,12 +55,34 @@ struct InterventionRunResult: Sendable {
 struct ActiveAssessmentInferenceResult: Sendable {
     var groundingAction: String
     var modelResponse: String
+    var rawResponseJSON: String
     var totalTimeMs: Double
 }
 
-struct ClinicianDirective: Codable, Equatable, Sendable {
+struct ClinicianDirective: Codable, Equatable, Sendable, Identifiable {
     var id: String
     var title: String
     var details: String
     var createdAt: String?
+    var directiveType: String?
+    var instructions: String?
+    var deployedAt: Date?
+    var acknowledged: Bool?
+    var incidentId: String?
+
+    /// Friendly display title — falls back to the directive type when the
+    /// upstream `title` is empty (Convex documents only carry `directiveType`
+    /// + `instructions`).
+    var displayTitle: String {
+        if !title.isEmpty { return title }
+        if let t = directiveType, !t.isEmpty { return t }
+        return "Clinician directive"
+    }
+
+    /// Detail text shown under the title — prefers explicit `instructions`
+    /// from Convex, otherwise the legacy `details` string.
+    var displayInstructions: String {
+        if let i = instructions, !i.isEmpty { return i }
+        return details
+    }
 }

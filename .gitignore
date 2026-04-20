@@ -15,3 +15,7 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Node / demo Express server deps and vendored Node toolchain
+node_modules/
+tools/

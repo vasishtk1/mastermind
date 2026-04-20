@@ -117,7 +117,7 @@ struct JournalCaptureView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
 
-                    if showStatusProgress || isAnalyzing || isSharingJournal {
+                    if selectedKind == .video && (showStatusProgress || isAnalyzing || isSharingJournal) {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(statusTitle)
@@ -278,42 +278,70 @@ struct JournalCaptureView: View {
             let inference = try await CactusManager.shared.runInterventionAgent(
                 textInput: noteText.isEmpty ? "User recorded a journal without extra text." : noteText,
                 facialStressScore: facial.facialStressScore,
-                patientId: env.patientId
+                patientId: env.patientId,
+                audio: audio,
+                browFurrowScore: facial.browFurrowScore,
+                jawTightnessScore: facial.jawTightnessScore
             )
 
             var biometricsSent = false
+            let context: [String: Any] = [
+                "patient_id": env.patientId,
+                "session_id": sessionIdentifierString(kind: kind),
+                "tripwire_score": env.latestTripwireScore,
+                "realtime_vad_score": CactusManager.shared.realtimeVADScore,
+                "realtime_speech_detected": CactusManager.shared.realtimeSpeechDetected,
+                "realtime_chunks_seen": CactusManager.shared.realtimeChunksSeen,
+                "realtime_events_uploaded": CactusManager.shared.realtimeEventsUploaded,
+                "gemma_model_response": inference.modelResponse,
+            ]
             do {
-                setSystemStatus("Gemma 4 succeeded. Sending biometrics...", progress: 0.80)
-                let snapshot = makeTelemetrySnapshot()
-                let context: [String: Any] = [
-                    "patient_id": env.patientId,
-                    "session_id": sessionIdentifierString(kind: kind),
-                    "tripwire_score": env.latestTripwireScore,
-                    "realtime_vad_score": CactusManager.shared.realtimeVADScore,
-                    "realtime_speech_detected": CactusManager.shared.realtimeSpeechDetected,
-                    "realtime_chunks_seen": CactusManager.shared.realtimeChunksSeen,
-                    "realtime_events_uploaded": CactusManager.shared.realtimeEventsUploaded,
-                ]
-                try await env.api.uploadIncident(
-                    text: noteText,
-                    facialData: [
-                        "facial_stress_score": facial.facialStressScore,
-                        "brow_furrow_score": facial.browFurrowScore,
-                        "jaw_tightness_score": facial.jawTightnessScore,
-                    ],
-                    gemmaAction: inference.groundingAction,
-                    audioMetrics: audio,
+                setSystemStatus("Gemma 4 succeeded. Pushing to Convex...", progress: 0.80)
+                let result = try await env.convex.ingestJournal(
+                    patientId: env.patientId,
+                    patientName: nil,
                     journalKind: kind,
+                    noteText: noteText,
+                    audio: audio,
+                    facial: facial,
+                    gemmaGroundingAction: inference.groundingAction,
+                    gemmaModelResponse: inference.modelResponse,
                     gemmaSuccess: true,
-                    gemmaLatencyMs: inference.totalTimeMs,
-                    telemetrySnapshot: snapshot,
-                    extraContext: context
+                    gemmaTotalTimeMs: inference.totalTimeMs,
+                    gemmaRawJSON: inference.rawResponseJSON,
+                    context: context
                 )
                 biometricsSent = true
-                setSystemStatus("Biometrics sent to doctor.", progress: 1.0)
+                setSystemStatus("Incident \(result.incidentId.suffix(6)) sent to doctor.", progress: 1.0)
+                print("[Journal][Convex] ingestJournal -> incidentId=\(result.incidentId) severity=\(result.severity)")
             } catch {
-                print("[Journal] Biometrics upload failed: \(error.localizedDescription)")
-                setSystemStatus("Gemma 4 succeeded. Biometrics send failed.", progress: 1.0)
+                print("[Journal][Convex] ingestJournal failed: \(error.localizedDescription)")
+                // Best-effort fallback through FastAPI bridge if it's running.
+                let snapshot = makeTelemetrySnapshot()
+                do {
+                    try await env.api.uploadIncident(
+                        patientId: env.patientId,
+                        text: noteText,
+                        facialData: [
+                            "facial_stress_score": facial.facialStressScore,
+                            "brow_furrow_score": facial.browFurrowScore,
+                            "jaw_tightness_score": facial.jawTightnessScore,
+                        ],
+                        gemmaAction: inference.groundingAction,
+                        audioMetrics: audio,
+                        journalKind: kind,
+                        gemmaSuccess: true,
+                        gemmaLatencyMs: inference.totalTimeMs,
+                        gemmaRawResponseJSON: inference.rawResponseJSON,
+                        telemetrySnapshot: snapshot,
+                        extraContext: context
+                    )
+                    biometricsSent = true
+                    setSystemStatus("Biometrics sent via backend bridge.", progress: 1.0)
+                } catch let bridgeError {
+                    print("[Journal][Bridge] FastAPI fallback failed: \(bridgeError.localizedDescription)")
+                    setSystemStatus("Gemma 4 succeeded. Biometrics send failed.", progress: 1.0)
+                }
             }
 
             let session = JournalSession(
@@ -336,18 +364,22 @@ struct JournalCaptureView: View {
             store.add(session)
 
             if biometricsSent {
-                infoText = "Gemma 4 status: SUCCESS. Biometrics sent. Awaiting your sharing decision."
+                infoText = kind == .voice
+                    ? "Voice journal saved. Biometrics sent. Awaiting your sharing decision."
+                    : "Gemma 4 status: SUCCESS. Biometrics sent. Awaiting your sharing decision."
                 pendingShareSessionID = session.id
                 pendingShareFileURL = recordedURL
                 pendingShareKind = kind
                 showSharePrompt = true
             } else {
-                infoText = "Gemma 4 status: SUCCESS. Saved locally. Could not send biometrics right now."
+                infoText = kind == .voice
+                    ? "Voice journal saved locally. Could not send biometrics right now."
+                    : "Gemma 4 status: SUCCESS. Saved locally. Could not send biometrics right now."
             }
         } catch {
             setSystemStatus("Gemma 4 failed to process this entry.", progress: 1.0)
             errorText = "Could not analyze/save session: \(error.localizedDescription)"
-            infoText = "Gemma 4 status: FAILED."
+            infoText = kind == .voice ? nil : "Gemma 4 status: FAILED."
         }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 900_000_000)
@@ -359,6 +391,7 @@ struct JournalCaptureView: View {
 
     @MainActor
     private func setSystemStatus(_ title: String, progress: Double) {
+        guard selectedKind == .video else { return }
         statusTitle = title
         statusProgress = max(0, min(1, progress))
         showStatusProgress = true
@@ -418,4 +451,5 @@ struct JournalCaptureView: View {
             environments: environment
         )
     }
+
 }
