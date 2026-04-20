@@ -7,12 +7,12 @@ export const StatusBadge = ({ severity, className }: { severity: IncidentSeverit
   const isMod = severity === "moderate" || severity === "MODERATE";
 
   const severityClass = isCrit
-    ? "bg-red-900/40 text-red-300 border-red-500/50"
+    ? "bg-destructive/15 text-destructive border-destructive/50"
     : isHigh
-    ? "bg-orange-900/30 text-orange-300 border-orange-500/45"
+    ? "bg-primary/15 text-primary border-primary/50"
     : isMod
-    ? "bg-amber-900/25 text-amber-200 border-amber-500/40"
-    : "bg-slate-800 text-slate-300 border-slate-600/60";
+    ? "bg-primary-glow/20 text-primary border-primary-glow/50"
+    : "bg-muted text-muted-foreground border-border";
 
   return (
     <span

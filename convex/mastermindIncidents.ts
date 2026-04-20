@@ -47,3 +47,15 @@ export const listRecent = query({
     return await ctx.db.query("mastermindIncidents").order("desc").take(limit);
   },
 });
+
+/** Wipe every MasterMind device incident row. */
+export const clearAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("mastermindIncidents").collect();
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return { ok: true, deleted: rows.length };
+  },
+});

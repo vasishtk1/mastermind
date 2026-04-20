@@ -115,15 +115,26 @@ export const journal = mutation({
     // 3. Dashboard incident (IncidentReport shape)
     const incidentId = `inc-${args.patientId}-${safeCreatedAt}`;
     const severity = severityFromMetrics(args.facial.facial_stress_score, args.audio.spectral_flux, args.audio.pitch_escalation);
+    // Passive on-device VAD entries (the always-on tripwire on the iOS
+    // home screen) are labeled separately from intentional journal
+    // check-ins so the clinician can immediately tell which signal was
+    // self-reported and which was caught autonomously by the device.
+    const passiveCtx = (args.context ?? {}) as { source?: unknown };
+    const isPassiveMonitor =
+      typeof passiveCtx.source === "string" &&
+      passiveCtx.source === "passive_monitor";
     // Prefer the user's typed note; fall back to Gemma's structured
     // description (so the dashboard never shows "(no note provided)" when the
     // on-device JSON parse succeeded); finally fall back to the grounding
-    // action text or the literal placeholder.
+    // action text or the literal placeholder. Passive monitor entries get
+    // a distinct default statement so the triage feed reads correctly.
     const userStatement =
       args.noteText?.trim() ||
       gemmaDescription ||
       args.gemma.grounding_action?.trim() ||
-      "(no note provided)";
+      (isPassiveMonitor
+        ? "Cactus VAD detected elevated acoustic activity on the patient's device."
+        : "(no note provided)");
 
     const incidentPayload = {
       id: incidentId,
@@ -132,8 +143,9 @@ export const journal = mutation({
       patient_initials: initials,
       patient_accent: "teal" as const,
       timestamp: new Date(safeCreatedAt).toISOString(),
-      trigger_type:
-        args.journalKind === "voice"
+      trigger_type: isPassiveMonitor
+        ? "Cactus VAD"
+        : args.journalKind === "voice"
           ? "Voice journal check-in"
           : "Video journal check-in",
       acoustic_variance: clamp01(args.audio.spectral_flux * 8),

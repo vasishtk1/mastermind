@@ -321,7 +321,7 @@ export function BenchmarkConvexPanel({
               <>
                 patient row <span className="text-primary">✓</span> · clinical reports {snapshot.clinicalReports.length} ·
                 device events {snapshot.deviceEvents.length} · directives {snapshot.directives.length} · telemetry batches{" "}
-                {snapshot.telemetryBatches.length} · ember incidents {snapshot.emberIncidents.length}
+                {snapshot.telemetryBatches.length} · mastermind incidents {snapshot.emberIncidents.length}
               </>
             ) : (
               <>no <code className="text-[10px]">patients</code> row for this id — upsert via CLI or app, or pick another patient.</>

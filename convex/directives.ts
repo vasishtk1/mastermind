@@ -44,11 +44,16 @@ export const deploy = mutation({
       acknowledged: false,
     });
 
-    const incident = await ctx.db
+    // `incidentId` is logically unique but the schema doesn't enforce it
+    // (concurrent upserts have produced duplicates in the wild). Patch
+    // every match so the dashboard reflects the deployed directive no
+    // matter which row the UI subscription is reading from.
+    const incidents = await ctx.db
       .query("emberIncidents")
       .withIndex("by_incidentId", (q) => q.eq("incidentId", args.incidentId))
-      .unique();
-    if (incident) {
+      .collect();
+
+    for (const incident of incidents) {
       const payload = (incident.payload ?? {}) as Record<string, unknown>;
       const updated = {
         ...payload,
@@ -72,7 +77,30 @@ export const deploy = mutation({
         updatedAt: now,
       });
     }
-    return { directiveId, deployedAt: now };
+    return { directiveId, deployedAt: now, patchedIncidents: incidents.length };
+  },
+});
+
+/**
+ * Wipe every directive (optionally scoped to a single patient). Used to
+ * clear cached "current grounding" and the on-device tunable metric strip
+ * between demos without dropping patients, benchmarks, or incidents.
+ */
+export const clearAll = mutation({
+  args: { patientId: v.optional(v.string()) },
+  handler: async (ctx, { patientId }) => {
+    const rows = patientId
+      ? await ctx.db
+          .query("directives")
+          .withIndex("by_patient_time", (q) => q.eq("patientId", patientId))
+          .collect()
+      : await ctx.db.query("directives").collect();
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+
+    return { ok: true, deleted: rows.length, patientId: patientId ?? null };
   },
 });
 
@@ -111,12 +139,15 @@ export const acknowledge = mutation({
       status: "acknowledged",
     });
     // Also reflect acknowledgement on the IncidentReport mirror so the
-    // clinician dashboard sees the patient confirmed the directive.
-    const incident = await ctx.db
+    // clinician dashboard sees the patient confirmed the directive. Use
+    // `collect()` instead of `unique()` because the schema doesn't enforce
+    // a unique `incidentId` on `emberIncidents` and historical duplicates
+    // would otherwise crash this mutation.
+    const incidents = await ctx.db
       .query("emberIncidents")
       .withIndex("by_incidentId", (q) => q.eq("incidentId", row.incidentId))
-      .unique();
-    if (incident) {
+      .collect();
+    for (const incident of incidents) {
       const payload = (incident.payload ?? {}) as Record<string, unknown>;
       const dd = (payload.deployed_directive ?? null) as Record<string, unknown> | null;
       if (dd) {

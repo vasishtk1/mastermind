@@ -53,11 +53,11 @@ const toneClass = (tone: "pass" | "warn" | "fail") =>
   tone === "pass"
     ? "bg-primary/10 text-primary border-primary/40"
     : tone === "warn"
-    ? "bg-amber-500/10 text-amber-400 border-amber-500/40"
+    ? "bg-primary-glow/15 text-primary border-primary-glow/45"
     : "bg-danger/10 text-danger border-danger/40";
 
 const passBadgeClass =
-  "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40";
+  "bg-safe/25 text-warning border-safe/55";
 
 const toneIcon = (tone: "pass" | "warn" | "fail") =>
   tone === "pass" ? CheckCircle2 : tone === "warn" ? AlertTriangle : XCircle;
@@ -75,22 +75,22 @@ function severityVisual(score: number | null, expectedHigh: boolean) {
   }
   if (score > 8.0 || (expectedHigh && score >= 7.0)) {
     return {
-      className: "text-red-500 font-bold tabular-nums",
+      className: "text-destructive font-bold tabular-nums",
       badge: "HIGH",
     };
   }
   if (score >= 4) {
-    return { className: "text-amber-500/90 font-semibold tabular-nums", badge: "MOD" };
+    return { className: "text-primary font-semibold tabular-nums", badge: "MOD" };
   }
   return { className: "text-muted-foreground tabular-nums", badge: "LOW" };
 }
 
 const sectionHardware =
-  "rounded-xl border border-slate-200 bg-slate-50/90 p-6 space-y-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/35";
+  "rounded-xl border border-border bg-card p-6 space-y-4 shadow-sm";
 const sectionLlm =
-  "rounded-xl border border-slate-200 bg-slate-50/50 p-6 space-y-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/25";
+  "rounded-xl border border-border bg-card/70 p-6 space-y-6 shadow-sm";
 
-/** RAG evaluation + device grounding — lives under Ember Research Lab. */
+/** RAG evaluation + device grounding — lives under MasterMind Research Lab. */
 export function EvalAuditContent() {
   const [data, setData] = useState<EvalSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -252,7 +252,7 @@ function ReviewerBrief() {
         </li>
         <li>
           <span className="text-foreground/90 font-medium">Same lab</span> — Neuroscience profiles live on the sibling tab in{" "}
-          <strong className="text-foreground">Ember Research Lab</strong>.
+          <strong className="text-foreground">MasterMind Research Lab</strong>.
         </li>
       </ol>
     </div>
@@ -361,7 +361,7 @@ const ScoreCard = ({
       className={cn(
         "rounded-xl border p-5 space-y-2 flex flex-col min-h-[180px]",
         isPass
-          ? "border-emerald-500/35 bg-emerald-500/[0.07] shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
+          ? "border-safe/45 bg-safe/10 shadow-[0_0_0_1px_hsl(var(--safe)/0.18)]"
           : "border-border bg-card/80",
       )}
     >
@@ -380,7 +380,7 @@ const ScoreCard = ({
       <div
         className={cn(
           "mono text-4xl font-bold tracking-tight flex-1 flex items-center",
-          isPass ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
+          isPass ? "text-warning" : "text-foreground",
         )}
       >
         {metric}
@@ -634,8 +634,8 @@ const CaseTable = ({ cases }: { cases: EvalCaseResult[] }) => {
                           <span
                             className={cn(
                               "ml-1.5 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                              vis.badge === "HIGH" && "bg-red-500/20 text-red-500",
-                              vis.badge === "MOD" && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                              vis.badge === "HIGH" && "bg-destructive/15 text-destructive",
+                              vis.badge === "MOD" && "bg-primary/15 text-primary",
                               vis.badge === "LOW" && "bg-muted text-muted-foreground",
                             )}
                           >
@@ -677,7 +677,7 @@ const Pill = ({ tone, label }: { tone: "pass" | "warn" | "fail"; label: string }
 
 const LoadingSkeleton = () => (
   <div className="space-y-4">
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-5 h-16 animate-pulse bg-slate-100/50 dark:bg-slate-900/40" />
+    <div className="rounded-xl border border-border p-5 h-16 animate-pulse bg-card/50" />
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="rounded-xl border border-border p-5 h-44 animate-pulse bg-card/50" />

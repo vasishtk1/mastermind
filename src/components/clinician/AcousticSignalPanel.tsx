@@ -92,9 +92,9 @@ export function AcousticThresholdRadar({ safeValues, dangerValues }: { safeValue
       <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full max-h-[min(520px,55vh)]">
         <defs>
           <radialGradient id="emberDangerFillPanel" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stopColor="#E27533" stopOpacity="0.06" />
-            <stop offset="70%" stopColor="#E27533" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#D6975A" stopOpacity="0.32" />
+            <stop offset="0%" stopColor="#E27533" stopOpacity="0.08" />
+            <stop offset="70%" stopColor="#E27533" stopOpacity="0.26" />
+            <stop offset="100%" stopColor="#D6975A" stopOpacity="0.38" />
           </radialGradient>
           <filter id="emberGlowPanel">
             <feGaussianBlur stdDeviation="4" result="blur" />
@@ -118,10 +118,10 @@ export function AcousticThresholdRadar({ safeValues, dangerValues }: { safeValue
 
         {Array.from({ length: 6 }).map((_, idx) => {
           const p = pointFor(idx, 1);
-          return <line key={idx} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#3A3E45" strokeWidth={1} />;
+          return <line key={idx} x1={center} y1={center} x2={p.x} y2={p.y} stroke="hsl(var(--border))" strokeWidth={1} />;
         })}
 
-        <polygon points={safePolygon} fill="#F2EEE3" fillOpacity={0.2} stroke="#F2EEE3" strokeWidth={1.6} />
+        <polygon points={safePolygon} fill="#EFEAE0" fillOpacity={0.7} stroke="#C7BEAA" strokeWidth={1.6} />
         <polygon
           points={dangerPolygon}
           fill="url(#emberDangerFillPanel)"
@@ -144,7 +144,7 @@ export function AcousticThresholdRadar({ safeValues, dangerValues }: { safeValue
               y={p.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="#9BA4B5"
+              fill="hsl(var(--muted-foreground))"
               fontSize="11"
               fontFamily="Inter, sans-serif"
             >
@@ -204,8 +204,8 @@ export function SignalMetricCard({
         <div className="relative h-2 rounded-full bg-input border border-border overflow-hidden">
           <div className="absolute top-0 left-0 h-full bg-accent/50" style={{ width: `${safeValue}%` }} />
           <div
-            className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-amber-500/90"
-            style={{ width: `${dangerValue}%`, boxShadow: "0 0 10px rgba(226,117,51,0.35)" }}
+            className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary-glow"
+            style={{ width: `${dangerValue}%`, boxShadow: "0 0 10px hsl(var(--primary) / 0.35)" }}
           />
         </div>
         <div className="mono text-[10px] text-muted-foreground mt-1">Delta magnitude: {Math.round(deltaMagnitude)}</div>

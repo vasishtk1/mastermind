@@ -131,7 +131,7 @@ export function DeviceGroundingCard() {
               key={c.plainName}
               className={cn(
                 "rounded-lg border px-3 py-3 text-left",
-                "border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-950/40",
+                "border-border bg-card/70",
               )}
             >
               <MetricLabelWithInfo cell={c} />

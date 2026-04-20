@@ -17,11 +17,11 @@ const ACTIVITY_TYPES: DirectiveActivityType[] = [
 
 const ACTIVITY_SUGGESTIONS: Partial<Record<DirectiveActivityType, string>> = {
   "Breathing Exercise":
-    "Practice box breathing (4-4-4-4) for 5 minutes. Open Ember → Breathe → Box Protocol. Focus on the visual guide.",
+    "Practice box breathing (4-4-4-4) for 5 minutes. Open MasterMind → Breathe → Box Protocol. Focus on the visual guide.",
   "Grounding (5-4-3-2-1)":
     "Pause and name: 5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, 1 you can taste.",
   "Mindfulness Meditation":
-    "Find a quiet spot for 10 minutes. Open Ember → Mindfulness → Body Scan. Lie down if possible.",
+    "Find a quiet spot for 10 minutes. Open MasterMind → Mindfulness → Body Scan. Lie down if possible.",
   Journaling:
     "Write freely for 10 minutes about what triggered today's episode. Focus on physical sensations, not analysis.",
   "Physical Movement":
@@ -85,10 +85,10 @@ export function InsightDeploymentForm({ incident, onDeployed }: Props) {
 
   if (deployed) {
     return (
-      <div className="flex items-center gap-3 px-4 py-3 rounded border border-green-700/40 bg-green-900/10">
-        <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+      <div className="flex items-center gap-3 px-4 py-3 rounded border border-warning/40 bg-warning/10">
+        <CheckCircle2 className="w-5 h-5 text-warning shrink-0" />
         <div>
-          <p className="text-sm font-medium text-green-300">Directive deployed to device</p>
+          <p className="text-sm font-medium text-warning">Directive deployed to device</p>
           <p className="mono text-[11px] text-muted-foreground mt-0.5">
             {activityType} — awaiting patient acknowledgement
           </p>
@@ -135,9 +135,9 @@ export function InsightDeploymentForm({ incident, onDeployed }: Props) {
           disabled={loading || !instructions.trim()}
           className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
-            background: "linear-gradient(135deg, #E27533 0%, #D6975A 100%)",
-            color: "hsl(220 8% 12%)",
-            boxShadow: loading ? "none" : "0 0 14px rgba(226,117,51,0.35)",
+            background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-glow)) 100%)",
+            color: "hsl(var(--primary-foreground))",
+            boxShadow: loading ? "none" : "0 0 14px hsl(var(--primary) / 0.35)",
           }}
         >
           {loading ? (

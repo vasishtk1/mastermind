@@ -21,12 +21,12 @@ import { InsightDeploymentForm } from "./InsightDeploymentForm";
 
 function severityColor(s: IncidentReport["severity"]) {
   return s === "critical"
-    ? "text-red-400 border-red-500/60 bg-red-900/15"
+    ? "text-destructive border-destructive/55 bg-destructive/10"
     : s === "high"
-    ? "text-orange-400 border-orange-500/60 bg-orange-900/15"
+    ? "text-primary border-primary/55 bg-primary/10"
     : s === "moderate"
-    ? "text-yellow-400 border-yellow-500/60 bg-yellow-900/15"
-    : "text-blue-400 border-blue-500/60 bg-blue-900/15";
+    ? "text-warning border-warning/55 bg-warning/10"
+    : "text-muted-foreground border-border bg-muted";
 }
 
 function ScoreBar({
@@ -162,7 +162,7 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
     /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+      style={{ background: "hsl(220 14% 18% / 0.45)", backdropFilter: "blur(4px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Modal shell */}
@@ -208,7 +208,7 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
             {/* Trigger */}
             <DataRow label="Trigger">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-sm font-medium">{incident.trigger_type}</span>
               </div>
             </DataRow>
@@ -222,10 +222,10 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
                 value={incident.acoustic_variance}
                 color={
                   incident.acoustic_variance > 0.75
-                    ? "bg-red-500"
+                    ? "bg-destructive"
                     : incident.acoustic_variance > 0.5
-                    ? "bg-orange-500"
-                    : "bg-yellow-500"
+                    ? "bg-primary"
+                    : "bg-warning"
                 }
               />
               <p className="mono text-[10px] text-muted-foreground mt-1">
@@ -236,7 +236,7 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
             {/* ARKit stress */}
             <DataRow label="ARKit Facial Stress Index (5-sec avg)">
               <div className="flex items-center gap-2">
-                <p className="mono text-lg font-semibold text-orange-400">
+                <p className="mono text-lg font-semibold text-primary">
                   {(incident.arkit_stress_index * 100).toFixed(0)}%
                 </p>
               </div>
@@ -244,8 +244,8 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
                 value={incident.arkit_stress_index}
                 color={
                   incident.arkit_stress_index > 0.7
-                    ? "bg-red-500"
-                    : "bg-orange-500"
+                    ? "bg-destructive"
+                    : "bg-primary"
                 }
               />
               <p className="mono text-[10px] text-muted-foreground mt-1">
@@ -278,8 +278,8 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
               <span
                 className={`mono text-[10px] px-2 py-0.5 rounded border tracking-wider ${
                   incident.stabilized
-                    ? "text-green-400 border-green-700/50 bg-green-900/10"
-                    : "text-red-400 border-red-700/50 bg-red-900/10"
+                    ? "text-primary border-primary/50 bg-primary/10"
+                    : "text-destructive border-destructive/50 bg-destructive/10"
                 }`}
               >
                 {incident.stabilized ? "STABILISED" : "NOT STABILISED"}
@@ -305,16 +305,16 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
                   onClick={handleSynthesise}
                   className="flex items-center gap-2 px-5 py-2.5 rounded text-sm font-semibold transition-all"
                   style={{
-                    background: "linear-gradient(135deg, #E27533 0%, #D6975A 100%)",
-                    color: "hsl(220 8% 12%)",
-                    boxShadow: "0 0 18px rgba(226,117,51,0.4)",
+                    background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-glow)) 100%)",
+                    color: "hsl(var(--primary-foreground))",
+                    boxShadow: "0 0 18px hsl(var(--primary) / 0.4)",
                   }}
                 >
                   <Wand2 className="w-4 h-4" />
                   Synthesise via RAG
                 </button>
                 {synthError && (
-                  <p className="mono text-xs text-red-400 text-center">{synthError}</p>
+                  <p className="mono text-xs text-danger text-center">{synthError}</p>
                 )}
               </div>
             )}
@@ -372,10 +372,10 @@ export function IncidentReviewModal({ incident: initialIncident, onClose, onUpda
 function SynthesisPanel({ synthesis }: { synthesis: ClinicalSynthesis }) {
   const scoreColor =
     synthesis.severity_score >= 7
-      ? "text-red-400"
+      ? "text-destructive"
       : synthesis.severity_score >= 4
-      ? "text-orange-400"
-      : "text-green-400";
+      ? "text-primary"
+      : "text-muted-foreground";
 
   return (
     <div className="space-y-4">
@@ -442,10 +442,10 @@ function SynthBlock({
 
 function DeployedChip({ directive }: { directive: DeployedDirective }) {
   return (
-    <div className="flex items-start gap-3 px-4 py-3 rounded border border-green-700/40 bg-green-900/10">
-      <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+    <div className="flex items-start gap-3 px-4 py-3 rounded border border-warning/40 bg-warning/10">
+      <CheckCircle2 className="w-5 h-5 text-warning shrink-0 mt-0.5" />
       <div>
-        <p className="text-sm font-medium text-green-300">{directive.directive_type}</p>
+        <p className="text-sm font-medium text-warning">{directive.directive_type}</p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
           {directive.instructions}
         </p>
@@ -457,9 +457,9 @@ function DeployedChip({ directive }: { directive: DeployedDirective }) {
           })}{" "}
           ·{" "}
           {directive.acknowledged ? (
-            <span className="text-green-400">Acknowledged by patient</span>
+            <span className="text-foreground font-medium">Acknowledged by patient</span>
           ) : (
-            <span className="text-yellow-500">Awaiting acknowledgement</span>
+            <span className="text-warning">Awaiting acknowledgement</span>
           )}
         </p>
       </div>

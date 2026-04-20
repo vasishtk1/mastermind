@@ -38,9 +38,9 @@ export const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValue
       <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full">
         <defs>
           <radialGradient id="emberDangerFill" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stopColor="#E27533" stopOpacity="0.06" />
-            <stop offset="70%" stopColor="#E27533" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#D6975A" stopOpacity="0.32" />
+            <stop offset="0%" stopColor="#E27533" stopOpacity="0.08" />
+            <stop offset="70%" stopColor="#E27533" stopOpacity="0.26" />
+            <stop offset="100%" stopColor="#D6975A" stopOpacity="0.38" />
           </radialGradient>
           <filter id="emberGlow">
             <feGaussianBlur stdDeviation="4" result="blur" />
@@ -56,7 +56,7 @@ export const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValue
             key={ratio}
             points={ringPolygon(ratio)}
             fill="none"
-            stroke="#3A3E45"
+            stroke="hsl(var(--border))"
             strokeDasharray="5 6"
             strokeWidth={1}
           />
@@ -64,10 +64,10 @@ export const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValue
 
         {Array.from({ length: 6 }).map((_, idx) => {
           const p = pointFor(idx, 1);
-          return <line key={idx} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#3A3E45" strokeWidth={1} />;
+          return <line key={idx} x1={center} y1={center} x2={p.x} y2={p.y} stroke="hsl(var(--border))" strokeWidth={1} />;
         })}
 
-        <polygon points={safePolygon} fill="#F2EEE3" fillOpacity={0.2} stroke="#F2EEE3" strokeWidth={1.6} />
+        <polygon points={safePolygon} fill="#EFEAE0" fillOpacity={0.7} stroke="#C7BEAA" strokeWidth={1.6} />
         <polygon points={dangerPolygon} fill="url(#emberDangerFill)" stroke="#E27533" strokeWidth={2.2} filter="url(#emberGlow)" />
 
         {dangerValues.map((value, idx) => {
@@ -84,7 +84,7 @@ export const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValue
               y={p.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="#9BA4B5"
+              fill="hsl(var(--muted-foreground))"
               fontSize="11"
               fontFamily="Inter, sans-serif"
             >
@@ -100,7 +100,7 @@ export const AcousticThresholdRadar = ({ safeValues, dangerValues }: { safeValue
               key={ringLabels[idx]}
               x={p.x + 8}
               y={p.y - 8}
-              fill="#8A95A5"
+              fill="hsl(var(--muted-foreground))"
               fontSize="10"
               fontFamily="Inter, sans-serif"
             >

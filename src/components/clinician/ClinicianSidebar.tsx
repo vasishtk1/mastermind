@@ -1,10 +1,10 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { FlaskConical, HeartPulse, LayoutGrid, Users } from "lucide-react";
+import { HeartPulse, LayoutGrid, Users } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const activeRing =
-  "border-primary text-primary bg-gradient-to-br from-primary/20 to-amber-500/10 shadow-[0_0_14px_rgba(226,117,51,0.28)]";
+  "border-primary text-primary bg-gradient-to-br from-primary/15 to-primary-glow/10 shadow-[0_0_14px_hsl(var(--primary)/0.28)]";
 
 export const ClinicianSidebar = () => {
   const location = useLocation();
@@ -22,10 +22,10 @@ export const ClinicianSidebar = () => {
       style={{ width: 60 }}
     >
       <img
-        src="/ember-v2-logo.png"
-        alt="Ember"
-        className="w-10 h-10 rounded-md mb-4 border border-border object-cover"
-        style={{ boxShadow: "0 0 12px rgba(226,117,51,0.25)" }}
+        src="/mastermind-mark.svg"
+        alt="MasterMind"
+        className="w-10 h-10 rounded-md mb-4 border border-border object-contain bg-surface-elevated p-1"
+        style={{ boxShadow: "0 0 12px hsl(var(--primary) / 0.25)" }}
       />
       <TooltipProvider delayDuration={120}>
         <Tooltip>
@@ -52,17 +52,6 @@ export const ClinicianSidebar = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink to="/gemma-json" className={({ isActive }) => navBtn(isActive)} aria-label="Gemma JSON ingest">
-              <FlaskConical className="w-5 h-5" />
-            </NavLink>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-sans text-xs">
-            Gemma JSON ingest
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
             <NavLink to="/benchmarking" className={({ isActive }) => navBtn(isActive)} aria-label="Benchmarking">
               <HeartPulse className="w-5 h-5" />
             </NavLink>
@@ -74,8 +63,8 @@ export const ClinicianSidebar = () => {
 
       </TooltipProvider>
 
-      <div className="mt-auto mono text-[9px] text-muted-foreground/60 tracking-widest [writing-mode:vertical-rl]">
-        EMBER
+      <div className="mt-auto mono text-[9px] text-muted-foreground/70 tracking-widest [writing-mode:vertical-rl]">
+        MASTERMIND
       </div>
     </aside>
   );

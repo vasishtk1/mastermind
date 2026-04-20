@@ -106,7 +106,7 @@ export default function GemmaJSONIngest() {
           Gemma JSON to Incident Report
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Paste Gemma metrics JSON, then submit. This creates a Convex `emberIncidents` report row and a matching `journalEntries` JSON row.
+          Paste Gemma metrics JSON, then submit. This creates a MasterMind incident report and a matching `journalEntries` JSON row in Convex.
         </p>
       </header>
 

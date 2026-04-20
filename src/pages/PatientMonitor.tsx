@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
@@ -18,7 +18,6 @@ import { Activity, Camera, CameraOff, Mic, MicOff, X, Zap, ChevronRight } from "
 import { CountUp } from "@/components/ember/CountUp";
 
 import { useEmberData } from "@/context/EmberClinicalContext";
-import type { Patient } from "@/lib/ember-types";
 import { cn } from "@/lib/utils";
 import { useTelemetry } from "@/hooks/useTelemetry";
 import { telemetryToMasterMindAudio } from "@/lib/mastermind-mapper";
@@ -91,65 +90,35 @@ const DISPLAY_BLENDSHAPES = [
 const PatientMonitor = () => {
   const navigate = useNavigate();
   const { patients, lastViewedPatientId, setLastViewedPatientId } = useEmberData();
-  const upsertPatient = useMutation(
-    api.patients.upsert,
-  );
-  const recordBenchmark = useMutation(
-    api.benchmarks.record,
-  );
-  const convexRoster = useQuery(
-    api.patients.list,
-    import.meta.env.VITE_CONVEX_URL ? {} : "skip",
-  );
-
-  const mergedPatients = useMemo((): Patient[] => {
-    const base = patients;
-    if (!convexRoster?.length) return base;
-    const ids = new Set(base.map((p) => p.id));
-    const extra: Patient[] = [];
-    for (const row of convexRoster) {
-      if (ids.has(row.patientId)) continue;
-      extra.push({
-        id: row.patientId,
-        name: row.name,
-        initials: row.initials,
-        dob: row.dob,
-        condition: row.condition,
-        clinician: row.clinician,
-        accent: row.accent,
-        lastActivity: row.lastActivity,
-      });
-    }
-    return [...base, ...extra];
-  }, [patients, convexRoster]);
+  const upsertPatient = useMutation(api.patients.upsert);
+  const recordBenchmark = useMutation(api.benchmarks.record);
 
   const initialPatientId = useMemo(() => {
-    if (lastViewedPatientId && mergedPatients.some((p) => p.id === lastViewedPatientId)) {
+    if (lastViewedPatientId && patients.some((p) => p.id === lastViewedPatientId)) {
       return lastViewedPatientId;
     }
-    return mergedPatients[0]?.id ?? "";
-  }, [lastViewedPatientId, mergedPatients]);
-  
+    return patients[0]?.id ?? "";
+  }, [lastViewedPatientId, patients]);
+
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
   const [lastGemini, setLastGemini] = useState<string | null>(null);
 
   // Sync back to global state when local selection changes
   useEffect(() => {
-    if (selectedPatientId !== lastViewedPatientId) {
+    if (selectedPatientId && selectedPatientId !== lastViewedPatientId) {
       setLastViewedPatientId(selectedPatientId);
     }
   }, [selectedPatientId, lastViewedPatientId, setLastViewedPatientId]);
 
-
   useEffect(() => {
-    if (!mergedPatients.some((p) => p.id === selectedPatientId)) {
-      setSelectedPatientId(mergedPatients[0]?.id ?? "");
+    if (!patients.some((p) => p.id === selectedPatientId)) {
+      setSelectedPatientId(patients[0]?.id ?? "");
     }
-  }, [mergedPatients, selectedPatientId]);
+  }, [patients, selectedPatientId]);
 
   const patient = useMemo(
-    () => mergedPatients.find((p) => p.id === selectedPatientId) ?? mergedPatients[0] ?? null,
-    [mergedPatients, selectedPatientId],
+    () => patients.find((p) => p.id === selectedPatientId) ?? patients[0] ?? null,
+    [patients, selectedPatientId],
   );
   const profile = { name: "Baseline Envelope" };
 
@@ -398,7 +367,6 @@ const PatientMonitor = () => {
   // --------------------------------------------------------------------------
   // Render
   // --------------------------------------------------------------------------
-  const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
   const benchmarkMetrics = useMemo(
     () => ({
       rmsDb: stats.rmsDb,
@@ -488,17 +456,11 @@ const PatientMonitor = () => {
                 <SelectValue placeholder="Choose patient" />
               </SelectTrigger>
               <SelectContent>
-                {mergedPatients.map((p) => {
-                  const convexOnly = Boolean(convexRoster?.some((r) => r.patientId === p.id) && !patients.some((x) => x.id === p.id));
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} · {p.condition}
-                      {convexOnly ? (
-                        <span className="ml-1.5 text-[10px] text-primary">(Convex)</span>
-                      ) : null}
-                    </SelectItem>
-                  );
-                })}
+                {patients.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} · {p.condition}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -525,8 +487,8 @@ const PatientMonitor = () => {
           />
 
           {inferring && (
-            <div className="px-2.5 py-1.5 rounded-md mono text-[10px] tracking-widest border bg-amber-500/10 border-amber-500/40 text-amber-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <div className="px-2.5 py-1.5 rounded-md mono text-[10px] tracking-widest border bg-primary-glow/15 border-primary-glow/45 text-primary flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               GEMINI
             </div>
           )}
@@ -643,7 +605,7 @@ const PatientMonitor = () => {
                 </div>
                 <p className="italic mono text-sm leading-relaxed text-foreground flex-1">"{reasoning}"</p>
                 <div className="mt-3 flex items-center gap-3">
-                  <div className="label-tiny text-primary">Ember speaking</div>
+                  <div className="label-tiny text-primary">MasterMind speaking</div>
                   <div className="flex items-end gap-1 h-5">
                     {[0, 1, 2].map((i) => (
                       <span
@@ -741,7 +703,7 @@ const CameraPanel = ({
       <span className={cn(
         "mono text-[9px] tracking-widest px-1.5 py-0.5 rounded-sm border",
         status === "ready"   ? "bg-primary/15 text-primary border-primary/40"
-        : status === "loading" ? "bg-amber-500/10 text-amber-400 border-amber-500/40"
+        : status === "loading" ? "bg-primary-glow/15 text-primary border-primary-glow/45"
         : "bg-muted/30 text-muted-foreground border-border",
       )}>
         {status === "ready" ? "MEDIAPIPE" : status === "loading" ? "LOADING" : "OFFLINE"}

@@ -45,7 +45,7 @@ function DeployDirectivePanel({ patientId }: { patientId: string }) {
       staged_at: new Date().toISOString(),
       sync_channel: "ios_edge_60s",
     };
-    console.info("[Ember] Directive staged for edge pull", payload);
+    console.info("[MasterMind] Directive staged for edge pull", payload);
     toast.success("Profile update staged for edge device", {
       description: "The iOS app will pick this up on its next 60-second sync loop.",
     });
@@ -56,7 +56,7 @@ function DeployDirectivePanel({ patientId }: { patientId: string }) {
       <div>
         <h3 className="text-sm font-semibold text-foreground">Deploy directive</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Mock payload for the Ember iOS sync loop — tune thresholds and on-device guidance before patients receive
+          Mock payload for the MasterMind iOS sync loop — tune thresholds and on-device guidance before patients receive
           updates.
         </p>
       </div>
@@ -99,7 +99,7 @@ function DeployDirectivePanel({ patientId }: { patientId: string }) {
       <Button
         type="button"
         onClick={deploy}
-        className="w-full font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(226,117,51,0.25)]"
+        className="w-full font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_hsl(var(--primary)/0.25)]"
       >
         Deploy to device
       </Button>
@@ -210,7 +210,7 @@ export default function PatientNeuroscienceProfile() {
               "w-11 h-11 rounded-md grid place-items-center mono text-sm font-bold border shrink-0",
               patient.accent === "teal" && "bg-primary/15 text-primary border-primary/40",
               patient.accent === "violet" && "bg-secondary/15 text-secondary border-secondary/40",
-              patient.accent === "coral" && "bg-amber-500/10 text-amber-400 border-amber-500/35",
+              patient.accent === "coral" && "bg-primary-glow/15 text-primary border-primary-glow/40",
             )}
           >
             {patient.initials}

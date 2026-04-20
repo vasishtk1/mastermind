@@ -40,7 +40,7 @@ const UI_UPDATE_INTERVAL_MS = 100; // push to React state at this rate
 // ---------------------------------------------------------------------------
 const RAD2DEG = 180 / Math.PI;
 
-function matrixToEuler(m: Float32Array): { pitch: number; yaw: number; roll: number } {
+function matrixToEuler(m: ArrayLike<number>): { pitch: number; yaw: number; roll: number } {
   // Column-major layout:
   // | m[0]  m[4]  m[8]  m[12] |
   // | m[1]  m[5]  m[9]  m[13] |

@@ -122,7 +122,7 @@ const AddPatientDialog = ({
         <DialogHeader>
           <DialogTitle>Add patient</DialogTitle>
           <DialogDescription>
-            Enter the core demographics used across Ember profiles and monitoring. Fields marked as required must be
+            Enter the core demographics used across MasterMind profiles and monitoring. Fields marked as required must be
             completed before the patient appears in this list.
           </DialogDescription>
         </DialogHeader>

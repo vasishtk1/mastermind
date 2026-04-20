@@ -26,7 +26,7 @@ export const MetricCard = ({
             <Icon className="w-4 h-4 text-primary" />
             <div className="text-sm font-semibold text-foreground">{name}</div>
           </div>
-          <div className={cn("mono text-[11px] font-semibold", delta >= 0 ? "text-primary" : "text-[#8A95A5]")}>
+          <div className={cn("mono text-[11px] font-semibold", delta >= 0 ? "text-primary" : "text-muted-foreground")}>
             {fmtDelta(delta)}
           </div>
         </div>
@@ -38,14 +38,14 @@ export const MetricCard = ({
           <span>SAFE {Math.round(safeValue)}</span>
           <span>DANGER {Math.round(dangerValue)}</span>
         </div>
-        <div className="relative h-2 rounded-full bg-[#16181A] border border-border overflow-hidden">
-          <div className="absolute top-0 left-0 h-full bg-[#F2EEE3]/50" style={{ width: `${safeValue}%` }} />
+        <div className="relative h-2 rounded-full bg-muted border border-border overflow-hidden">
+          <div className="absolute top-0 left-0 h-full bg-safe/55" style={{ width: `${safeValue}%` }} />
           <div
             className="absolute top-0 left-0 h-full"
             style={{
               width: `${dangerValue}%`,
-              background: "linear-gradient(90deg, #E27533 0%, #D6975A 100%)",
-              boxShadow: "0 0 10px rgba(226,117,51,0.35)",
+              background: "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary-glow)) 100%)",
+              boxShadow: "0 0 10px hsl(var(--primary) / 0.35)",
             }}
           />
         </div>

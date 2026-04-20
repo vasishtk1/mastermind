@@ -13,9 +13,9 @@ const ST_LABEL: Record<IncidentStatus, string> = {
 };
 
 const ST_BADGE: Record<IncidentStatus, string> = {
-  unreviewed: "text-red-300/90",
-  in_review: "text-amber-300/90",
-  resolved: "text-emerald-400/90",
+  unreviewed: "text-destructive/90",
+  in_review: "text-primary/90",
+  resolved: "text-muted-foreground",
 };
 
 function rankForTriage(i: IncidentReport): number {

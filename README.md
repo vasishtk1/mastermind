@@ -1,2 +1,2 @@
-# Ember Dashboard for Researchers/Doctors
+# MasterMind Dashboard for Researchers/Doctors
 

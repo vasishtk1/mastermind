@@ -82,7 +82,7 @@ export const MOCK_INCIDENTS: IncidentReport[] = [
       incident_id: "inc-003",
       directive_type: "Breathing Exercise",
       instructions:
-        "Practice box breathing (4-4-4-4) for 5 minutes at 6 PM tonight. Open the Ember app → Breathe → Box Protocol. Focus on the visual guide, not the sound.",
+        "Practice box breathing (4-4-4-4) for 5 minutes at 6 PM tonight. Open the MasterMind app → Breathe → Box Protocol. Focus on the visual guide, not the sound.",
       deployed_at: ago(260),
       acknowledged: true,
     },
