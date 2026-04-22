@@ -1,0 +1,21 @@
+# Local Cactus checkout — clone separately or add as a submodule; do not commit weights/builds.
+/cactus/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Xcode / SwiftPM
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Node / demo Express server deps and vendored Node toolchain
+node_modules/
+tools/

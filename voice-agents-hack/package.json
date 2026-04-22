@@ -1,0 +1,26 @@
+{
+  "name": "voice-agents-hack",
+  "version": "1.0.0",
+  "description": "<img src=\"assets/banner.png\" alt=\"Logo\" style=\"border-radius: 30px; width: 60%;\">",
+  "main": "index.js",
+  "scripts": {
+    "start": "/Users/Aryan/voice-agents-hack/tools/node/bin/node index.js",
+    "dev": "/Users/Aryan/voice-agents-hack/tools/node/bin/node --watch index.js",
+    "test": "echo \"No tests configured\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasishtk1/voice-agents-hack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vasishtk1/voice-agents-hack/issues"
+  },
+  "homepage": "https://github.com/vasishtk1/voice-agents-hack#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}
