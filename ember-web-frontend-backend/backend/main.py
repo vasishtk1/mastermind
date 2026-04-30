@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from convex_bridge import call_mutation
 from database import Base, engine, get_db
-from db_models import ClinicalReport, DeviceEvent, EvalCaseResult, EvalRun, Patient, TelemetryBatch
+from db_models import ClinicalReport, DeviceEvent, EvalCaseResult, EvalRun, Patient, RiskScore, TelemetryBatch
 from models import (
     ClinicalIncidentReport,
     DirectivePayload,
@@ -47,6 +47,15 @@ from models import (
     TelemetryBatchPayload,
 )
 from rag_service import analyze_acoustic_snapshot, generate_clinical_report, generate_remediation_profile
+from triage_model import (
+    _model_cache,
+    build_labeled_dataset,
+    evaluate_and_alert,
+    load_model,
+    run_scoring_loop,
+    save_model,
+    train_model,
+)
 
 load_dotenv()
 
@@ -92,7 +101,20 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             print(f"[EMBER] Could not warm eval cache from DB: {exc}")
 
+    # Load the triage model from disk (no-op when not yet trained)
+    load_model()
+
+    # Start the 30-second scoring loop as a background task
+    scoring_task = asyncio.create_task(run_scoring_loop())
+
     yield
+
+    # Graceful shutdown: cancel the scoring loop
+    scoring_task.cancel()
+    try:
+        await scoring_task
+    except asyncio.CancelledError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +830,125 @@ async def get_latest_eval(
     summary = EvalSummary(**latest_run.summary_json)
     _eval_cache["latest"] = summary
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Triage model — train, score, and query risk scores
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/model/train",
+    tags=["Triage Model"],
+    summary="Build labeled dataset from historical records and train the triage model",
+)
+async def train_triage_model(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    1. Joins telemetry windows with ClinicalReport incident timestamps to produce
+       a labeled dataset (label=1 if an incident occurs within 5 minutes).
+    2. Augments with synthetic samples when real data is sparse (dev bootstrap).
+    3. Trains a GradientBoostingClassifier calibrated with Platt Scaling.
+    4. Saves the model to backend/models/triage_model.pkl and updates the cache.
+    """
+    loop = asyncio.get_event_loop()
+
+    X, y = await build_labeled_dataset(db)
+
+    try:
+        model = await loop.run_in_executor(None, lambda: train_model(X, y))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    save_model(model)
+    _model_cache["model"] = model
+
+    import numpy as np
+    return {
+        "status": "trained",
+        "n_samples":  int(len(y)),
+        "n_positive": int(np.sum(y == 1)),
+        "n_negative": int(np.sum(y == 0)),
+        "model_path": str(model.__class__.__name__),
+    }
+
+
+@app.get(
+    "/api/patients/{patient_id}/risk-score",
+    tags=["Triage Model"],
+    summary="Return the most recent triage risk score for a patient",
+)
+async def get_patient_risk_score(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Returns the latest RiskScore row for the patient.
+    Raises 404 when no scores exist yet (patient has no recent telemetry or
+    the scoring loop has not run yet).
+    """
+    result = await db.execute(
+        select(RiskScore)
+        .where(RiskScore.patient_id == patient_id)
+        .order_by(RiskScore.scored_at.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No risk scores found for patient {patient_id}. "
+                "Ensure telemetry is streaming and a model has been trained."
+            ),
+        )
+    return {
+        "patient_id": row.patient_id,
+        "risk_prob":  row.risk_prob,
+        "severity":   row.severity,
+        "scored_at":  row.scored_at.isoformat(),
+    }
+
+
+@app.post(
+    "/api/scoring/run",
+    tags=["Triage Model"],
+    summary="Manually trigger one scoring pass over all patients with recent telemetry",
+)
+async def run_scoring_pass(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Scores every patient that has received telemetry in the last 60 seconds.
+    Useful for on-demand testing without waiting for the 30-second background loop.
+
+    Raises HTTP 424 when no model has been trained yet.
+    """
+    model = _model_cache.get("model")
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_424_FAILED_DEPENDENCY,
+            detail="No triage model loaded. Call POST /api/model/train first.",
+        )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+    result = await db.execute(
+        select(TelemetryBatch.patient_id)
+        .where(TelemetryBatch.received_at >= cutoff)
+        .distinct()
+    )
+    patient_ids = [row[0] for row in result.all()]
+
+    alerts = []
+    for pid in patient_ids:
+        outcome = await evaluate_and_alert(pid, model, db)
+        if outcome:
+            alerts.append(outcome)
+
+    return {
+        "patients_scored": len(patient_ids),
+        "alerts_raised":   [a for a in alerts if a.get("severity") != "normal"],
+    }
 
 
 @app.post(
