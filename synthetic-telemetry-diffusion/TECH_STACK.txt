@@ -1,0 +1,38 @@
+Technologies, languages, and frameworks — synthetic-telemetry-diffusion
+=======================================================================
+
+Language
+--------
+• Python 3.10+ (scripts and package under src/)
+
+Core libraries
+--------------
+• PyTorch — neural network (MLP denoiser), training loop, checkpoints (.pt)
+• NumPy — feature matrices (features.npy, samples), normalization stats (norm.npz)
+• PyYAML — configs/default.yaml (hyperparameters and paths)
+• pandas — listed in requirements.txt for optional table/Parquet workflows (minimal use in first draft)
+• tqdm — listed in requirements.txt for future progress bars
+
+Data & I/O
+----------
+• SQLite3 (stdlib) — scripts/build_dataset.py reads telemetry_batches from an Ember-style .db
+• JSON (stdlib) — feature_schema.json, build_info.json, sample metadata sidecars
+• CSV (stdlib) — meta.csv, optional incidents CSV for weak labels
+
+Config & packaging
+------------------
+• YAML files — configs/default.yaml
+• pip + requirements.txt — dependency install
+• setuptools (pyproject.toml) — optional editable install (pip install -e .)
+
+File formats produced
+---------------------
+• NumPy binary (.npy, .npz)
+• PyTorch state dict checkpoints (.pt)
+• JSON, CSV (metadata and schema)
+
+Not used in this folder (for clarity)
+-------------------------------------
+• TypeScript / React / Convex — those live in the parent Ember app; this package only documents integration in INTEGRATION.md
+• FastAPI / HTTP — training and sampling are CLI-only here
+• CUDA / MPS — optional; PyTorch can use them when device is set in config and hardware is available
