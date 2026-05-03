@@ -1,4 +1,4 @@
-# Feature schema v1.0
+# Feature schema v1.0 (what the numbers are)
 
 Frozen column order is in `feature_schema.json` (`feature_names`). **Do not reorder** without bumping `version`.
 

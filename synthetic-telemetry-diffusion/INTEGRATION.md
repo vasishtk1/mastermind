@@ -1,4 +1,4 @@
-# Integrating with the main MasterMind / Ember repo
+# Integrating with the main MasterMind / Ember repo (how this side model results back to the big project safely)
 
 ## What this package produces
 
