@@ -1,0 +1,39 @@
+# Synthetic telemetry diffusion — default run config
+
+data:
+  lookback_seconds: 30
+  stride_seconds: 30
+  min_batches: 30
+  rms_silence_db: -55.0
+  motion_spike_percentile: 80
+  dropoff_tail_batches: 10
+  incident_lookahead_seconds: 300
+
+paths:
+  schema_file: feature_schema.json
+  dataset_dir: data/processed
+  checkpoint_dir: checkpoints
+  samples_dir: samples
+
+diffusion:
+  timesteps: 200
+  beta_schedule: linear  # linear | cosine
+  beta_start: 1.0e-4
+  beta_end: 2.0e-2
+
+model:
+  hidden_dim: 256
+  num_layers: 4
+  time_embed_dim: 128
+
+train:
+  batch_size: 64
+  learning_rate: 2.0e-4
+  epochs: 50
+  num_workers: 0
+  device: cpu  # cuda | cpu | mps
+  val_fraction: 0.1
+  seed: 42
+
+normalize:
+  clip_std: 10.0  # clamp std estimate to avoid blow-ups on tiny splits
