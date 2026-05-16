@@ -174,6 +174,27 @@ class TelemetryBatch(Base):
     )
 
 
+# ---------------------------------------------------------------------------
+# RiskScore
+# ---------------------------------------------------------------------------
+class RiskScore(Base):
+    """One ML triage risk score produced by the scoring loop.
+
+    Written by evaluate_and_alert() every 30 s for each active patient.
+    Kept for historical analysis and surfaced via GET /api/patients/{id}/risk-score.
+    """
+
+    __tablename__ = "risk_scores"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_uuid)
+    patient_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    risk_prob: Mapped[float] = mapped_column(Float, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False)  # "normal" | "warning" | "critical"
+    scored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class EvalCaseResult(Base):
     """One synthetic test-case result within an EvalRun.
 

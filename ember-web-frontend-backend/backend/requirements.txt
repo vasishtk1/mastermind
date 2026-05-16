@@ -7,3 +7,6 @@ sqlalchemy[asyncio]
 aiosqlite
 greenlet
 httpx
+scikit-learn
+numpy
+joblib
